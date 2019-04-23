@@ -1,21 +1,14 @@
 #include "ProcessCore.h"
+#include "main.h"
 
 
-extern DYNAMIC_DATA    g_DynamicData;
+extern GOLBAL_INFO g_DriverInfo;
 
-typedef
-UINT_PTR
-(*pfnObGetObjectType)(PVOID Object);
+typedef UINT_PTR(*pfnObGetObjectType)(PVOID Object);
 
 
-/************************************************************************
-*  Name : APGetPsIdleProcess
-*  Param: void
-*  Ret  : UINT_PTR            PsIdleProcess
-*  获得System Idle Process 的EProcess地址
-************************************************************************/
-UINT_PTR
-APGetPsIdleProcess()
+
+UINT_PTR APGetPsIdleProcess()
 {
     UINT_PTR PsIdleProcess = 0;
     UINT_PTR PsInitialSystemProcessAddress = (UINT_PTR)&PsInitialSystemProcess;
@@ -32,14 +25,7 @@ APGetPsIdleProcess()
 }
 
 
-/************************************************************************
-*  Name : APGetObjectType
-*  Param: Object                对象体首地址
-*  Ret  : UINT_PTR                （对象类型）
-*  x64：通过ObGetObjectType获得对象类型
-************************************************************************/
-UINT_PTR
-APGetObjectType(IN PVOID Object)
+UINT_PTR APGetObjectType(IN PVOID Object)
 {
     UINT_PTR    ObjectType = 0;
 
@@ -57,45 +43,29 @@ APGetObjectType(IN PVOID Object)
 }
 
 
-/************************************************************************
-*  Name : APIsActiveProcess
-*  Param: Object                对象体首地址
-*  Ret  : BOOLEAN
-*  通过是否存在句柄表判断进程是否存活 TRUE存活/ FALSE死进程
-************************************************************************/
-BOOLEAN
-APIsActiveProcess(IN PEPROCESS EProcess)
+BOOLEAN APIsActiveProcess(IN PEPROCESS EProcess)
 {
     BOOLEAN bOk = FALSE;
 
     if (EProcess &&
         MmIsAddressValid(EProcess) &&
-        MmIsAddressValid((PVOID)((PUINT8)EProcess + g_DynamicData.ObjectTable)))
+        MmIsAddressValid((PVOID)((PUINT8)EProcess + g_DriverInfo.DynamicData.ObjectTable)))
     {
-        PVOID ObjectTable = *(PVOID*)((PUINT8)EProcess + g_DynamicData.ObjectTable);
+        PVOID ObjectTable = *(PVOID*)((PUINT8)EProcess + g_DriverInfo.DynamicData.ObjectTable);
 
-        if (ObjectTable &&
-            MmIsAddressValid(ObjectTable))
+        if (ObjectTable &&MmIsAddressValid(ObjectTable))
         {
             bOk = TRUE;
         }
     }
-
     return bOk;
 }
 
 
-/************************************************************************
-*  Name : IsValidProcess
-*  Param: EProcess                进程体对象
-*  Ret  : BOOLEAN
-*  判断是否为合法进程 TRUE合法/ FALSE非法
-************************************************************************/
-BOOLEAN
-APIsValidProcess(IN PEPROCESS EProcess)
+BOOLEAN APIsValidProcess(IN PEPROCESS EProcess)
 {
     UINT_PTR    ObjectType;
-    BOOLEAN        bOk = FALSE;
+    BOOLEAN     bRet = FALSE;
 
     UINT_PTR    ProcessType = ((UINT_PTR)*PsProcessType);        // 导出全局变量，进程对象类型
 
@@ -107,22 +77,15 @@ APIsValidProcess(IN PEPROCESS EProcess)
             ObjectType == ProcessType &&
             APIsActiveProcess(EProcess))
         {
-            bOk = TRUE;
+            bRet = TRUE;
         }
     }
 
-    return bOk;
+    return bRet;
 }
 
 
-/************************************************************************
-*  Name : APGetProcessCount
-*  Param: OutputBuffer            Ring3缓冲区，存放进程个数
-*  Ret  : NTSTATUS
-*  获得当前进程个数
-************************************************************************/
-NTSTATUS
-APGetProcessNum(OUT PVOID OutputBuffer)
+NTSTATUS APGetProcessNum(OUT PULONG OutputBuffer)
 {
     UINT32 ProcessCount = 0;
     UINT32 ProcessId = 0;
@@ -144,7 +107,6 @@ APGetProcessNum(OUT PVOID OutputBuffer)
             {
                 ProcessCount++;
             }
-
             ObDereferenceObject(EProcess);   // 解引用
         }
     }
@@ -155,40 +117,24 @@ APGetProcessNum(OUT PVOID OutputBuffer)
 }
 
 
-/************************************************************************
-*  Name : APGetParentProcessId
-*  Param: EProcess               进程体结构
-*  Ret  : UINT_PTR
-*  获得父进程Id
-************************************************************************/
-UINT_PTR
-APGetParentProcessId(IN PEPROCESS EProcess)
+
+UINT_PTR APGetParentProcessId(IN PEPROCESS EProcess)
 {
+    UINT_PTR  ParentProcessId = 0;
+
     if (MmIsAddressValid &&
         EProcess &&
         MmIsAddressValid(EProcess) &&
-        MmIsAddressValid((PVOID)((PUINT8)EProcess + g_DynamicData.ObjectTable)))
+        MmIsAddressValid((PVOID)((PUINT8)EProcess + g_DriverInfo.DynamicData.ObjectTable)))
     {
-        UINT_PTR  ParentProcessId = 0;
-
-        ParentProcessId = *(PUINT_PTR)((PUINT8)EProcess + g_DynamicData.InheritedFromUniqueProcessId);
-
+        ParentProcessId = *(PUINT_PTR)((PUINT8)EProcess + g_DriverInfo.DynamicData.InheritedFromUniqueProcessId);
         return ParentProcessId;
     }
 
     return 0;
 }
 
-
-/************************************************************************
-*  Name : GetProcessFullPathByProcessId
-*  Param: ProcessId                    进程Id                （IN）
-*  Param: ProcessFullPath            进程完整路径        （OUT）
-*  Ret  : NTSTATUS
-*  通过FileObject获得进程完整路径
-************************************************************************/
-NTSTATUS
-APGetProcessFullPath(IN PEPROCESS EProcess, OUT PWCHAR ProcessFullPath)
+NTSTATUS APGetProcessFullPath(IN PEPROCESS EProcess, OUT PWCHAR ProcessFullPath)
 {
     NTSTATUS    Status = STATUS_UNSUCCESSFUL;
 
@@ -201,7 +147,7 @@ APGetProcessFullPath(IN PEPROCESS EProcess, OUT PWCHAR ProcessFullPath)
         ......
         +0x268 SectionObject    : 0xfffff8a0`01bf2a50 Void
         */
-        PSECTION_OBJECT SectionObject = (PSECTION_OBJECT)(*(PUINT_PTR)((PUINT8)EProcess + g_DynamicData.SectionObject));
+        PSECTION_OBJECT SectionObject = (PSECTION_OBJECT)(*(PUINT_PTR)((PUINT8)EProcess + g_DriverInfo.DynamicData.SectionObject));
 
         if (SectionObject && MmIsAddressValid(SectionObject))
         {
@@ -288,17 +234,7 @@ APGetProcessFullPath(IN PEPROCESS EProcess, OUT PWCHAR ProcessFullPath)
 }
 
 
-/************************************************************************
-*  Name : APGetProcessInfo
-*  Param: EThread            线程体对象
-*  Param: EProcess            进程体对象
-*  Param: pti
-*  Param: ThreadCount
-*  Ret  : NTSTATUS
-*  通过FileObject获得进程完整路径
-************************************************************************/
-VOID
-APGetProcessInfo(IN PEPROCESS EProcess, OUT PPROCESS_INFORMATION pi, IN UINT32 ProcessCount)
+VOID APGetProcessInfo(IN PEPROCESS EProcess, OUT PPROCESS_INFORMATION pi, IN UINT32 ProcessCount)
 {
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
@@ -311,12 +247,6 @@ APGetProcessInfo(IN PEPROCESS EProcess, OUT PPROCESS_INFORMATION pi, IN UINT32 P
             pi->ProcessEntry[pi->NumberOfProcesses].EProcess = (UINT_PTR)EProcess;
             pi->ProcessEntry[pi->NumberOfProcesses].ParentProcessId = (UINT32)APGetParentProcessId(EProcess);
             APGetProcessFullPath(EProcess, pi->ProcessEntry[pi->NumberOfProcesses].wzFilePath);
-
-            //DbgPrint("Process Id:%d\r\n", pi->ProcessEntry[pi->NumberOfProcesses].ProcessId);
-            //DbgPrint("EProcess:%p\r\n", pi->ProcessEntry[pi->NumberOfProcesses].EProcess);
-            //DbgPrint("EProcess:%d\r\n", pi->ProcessEntry[pi->NumberOfProcesses].ParentProcessId);
-            //DbgPrint("EProcess:%s\r\n", pi->ProcessEntry[pi->NumberOfProcesses].wzFilePath);
-
             pi->NumberOfProcesses++;
             ObDereferenceObject(EProcess);
         }
@@ -333,9 +263,7 @@ APGetProcessInfo(IN PEPROCESS EProcess, OUT PPROCESS_INFORMATION pi, IN UINT32 P
 *  Ret  : VOID
 *  遍历一级表
 ************************************************************************/
-VOID
-APEnumProcessInfoByIterateFirstLevelHandleTable(IN UINT_PTR TableCode,
-    OUT PPROCESS_INFORMATION pi, IN UINT32 ProcessCount)
+VOID APEnumProcessInfoByIterateFirstLevelHandleTable(IN UINT_PTR TableCode, OUT PPROCESS_INFORMATION pi, IN UINT32 ProcessCount)
 {
     /*
     Win7 x64 过16字节
@@ -361,7 +289,7 @@ APEnumProcessInfoByIterateFirstLevelHandleTable(IN UINT_PTR TableCode,
     8b404070  863f5021 00000000 863f5d49 00000000
     */
     UINT32 i = 0;
-    PHANDLE_TABLE_ENTRY    HandleTableEntry = (PHANDLE_TABLE_ENTRY)(*(PUINT_PTR)TableCode + g_DynamicData.HandleTableEntryOffset);
+    PHANDLE_TABLE_ENTRY    HandleTableEntry = (PHANDLE_TABLE_ENTRY)(*(PUINT_PTR)TableCode + g_DriverInfo.DynamicData.HandleTableEntryOffset);
 
     for (  i = 0; i < 0x200; i++)        // 512个表项
     {
@@ -389,9 +317,7 @@ APEnumProcessInfoByIterateFirstLevelHandleTable(IN UINT_PTR TableCode,
 *  Ret  : VOID
 *  遍历二级表
 ************************************************************************/
-VOID
-APEnumProcessInfoByIterateSecondLevelHandleTable(IN UINT_PTR TableCode,
-    OUT PPROCESS_INFORMATION pi, IN UINT32 ProcessCount)
+VOID APEnumProcessInfoByIterateSecondLevelHandleTable(IN UINT_PTR TableCode, OUT PPROCESS_INFORMATION pi, IN UINT32 ProcessCount)
 {
     /*
     Win7 x64
@@ -423,9 +349,7 @@ APEnumProcessInfoByIterateSecondLevelHandleTable(IN UINT_PTR TableCode,
 *  Ret  : VOID
 *  遍历三级表
 ************************************************************************/
-VOID
-APEnumProcessInfoByIterateThirdLevelHandleTable(IN UINT_PTR TableCode,
-    OUT PPROCESS_INFORMATION pi, IN UINT32 ProcessCount)
+VOID APEnumProcessInfoByIterateThirdLevelHandleTable(IN UINT_PTR TableCode, OUT PPROCESS_INFORMATION pi, IN UINT32 ProcessCount)
 {
     do
     {
@@ -437,8 +361,7 @@ APEnumProcessInfoByIterateThirdLevelHandleTable(IN UINT_PTR TableCode,
 }
 
 
-NTSTATUS
-APEnumProcessInfoByIteratePspCidTable(OUT PPROCESS_INFORMATION pi, IN UINT32 ProcessCount)
+NTSTATUS APEnumProcessInfoByIteratePspCidTable(OUT PPROCESS_INFORMATION pi, IN UINT32 ProcessCount)
 {
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
@@ -470,26 +393,26 @@ APEnumProcessInfoByIteratePspCidTable(OUT PPROCESS_INFORMATION pi, IN UINT32 Pro
             {
                 switch (TableLevel)
                 {
-                case 0:
-                {
-                    // 一层表
-                    APEnumProcessInfoByIterateFirstLevelHandleTable(TableCode, pi, ProcessCount);
-                    break;
-                }
-                case 1:
-                {
-                    // 二层表
-                    APEnumProcessInfoByIterateSecondLevelHandleTable(TableCode, pi, ProcessCount);
-                    break;
-                }
-                case 2:
-                {
-                    // 三层表
-                    APEnumProcessInfoByIterateThirdLevelHandleTable(TableCode, pi, ProcessCount);
-                    break;
-                }
-                default:
-                    break;
+                    case 0:
+                    {
+                        // 一层表
+                        APEnumProcessInfoByIterateFirstLevelHandleTable(TableCode, pi, ProcessCount);
+                        break;
+                    }
+                    case 1:
+                    {
+                        // 二层表
+                        APEnumProcessInfoByIterateSecondLevelHandleTable(TableCode, pi, ProcessCount);
+                        break;
+                    }
+                    case 2:
+                    {
+                        // 三层表
+                        APEnumProcessInfoByIterateThirdLevelHandleTable(TableCode, pi, ProcessCount);
+                        break;
+                    }
+                    default:
+                        break;
                 }
             }
         }
@@ -519,8 +442,7 @@ APEnumProcessInfoByIteratePspCidTable(OUT PPROCESS_INFORMATION pi, IN UINT32 Pro
 *  Ret  : NTSTATUS
 *  通过FileObject获得进程完整路径
 ************************************************************************/
-NTSTATUS
-APEnumProcessInfo(OUT PVOID OutputBuffer, IN UINT32 OutputLength)
+NTSTATUS APEnumProcessInfo(OUT PVOID OutputBuffer, IN UINT32 OutputLength)
 {
     NTSTATUS  Status = STATUS_UNSUCCESSFUL;
 
@@ -543,57 +465,6 @@ APEnumProcessInfo(OUT PVOID OutputBuffer, IN UINT32 OutputLength)
         }
     }
 
-/*
-    // 通过暴力id来枚举进程
-    for (UINT32 ProcessId = 0; ProcessId < MAX_PROCESS_COUNT; ProcessId += 4)
-    {
-        if (ProcessesCount > pi->NumberOfProcesses)
-        {
-            if (ProcessId == 0)
-            {
-                // Idle
-                pi->ProcessEntry[pi->NumberOfProcesses].ProcessId = 0;
-                pi->ProcessEntry[pi->NumberOfProcesses].EProcess = (UINT_PTR)APGetPsIdleProcess();   // 全局导出
-                pi->ProcessEntry[pi->NumberOfProcesses].ParentProcessId = 0;
-
-                DbgPrint("Process Id:%d\r\n", pi->ProcessEntry[pi->NumberOfProcesses].ProcessId);
-                DbgPrint("EProcess:%p\r\n", pi->ProcessEntry[pi->NumberOfProcesses].EProcess);
-                DbgPrint("EProcess:%d\r\n", pi->ProcessEntry[pi->NumberOfProcesses].ParentProcessId);
-
-                pi->NumberOfProcesses++;
-            }
-            else
-            {
-                // 其他进程
-                Status = PsLookupProcessByProcessId((HANDLE)ProcessId, &EProcess);
-                if (NT_SUCCESS(Status) && APIsValidProcess(EProcess))
-                {
-                    pi->ProcessEntry[pi->NumberOfProcesses].ProcessId = ProcessId;
-                    pi->ProcessEntry[pi->NumberOfProcesses].EProcess = (UINT_PTR)EProcess;
-                    pi->ProcessEntry[pi->NumberOfProcesses].ParentProcessId = (UINT32)APGetParentProcessId(EProcess);
-                    APGetProcessFullPath(EProcess, pi->ProcessEntry[pi->NumberOfProcesses].wzFilePath);
-
-                    DbgPrint("Process Id:%d\r\n", pi->ProcessEntry[pi->NumberOfProcesses].ProcessId);
-                    DbgPrint("EProcess:%p\r\n", pi->ProcessEntry[pi->NumberOfProcesses].EProcess);
-                    DbgPrint("EProcess:%d\r\n", pi->ProcessEntry[pi->NumberOfProcesses].ParentProcessId);
-                    DbgPrint("EProcess:%s\r\n", pi->ProcessEntry[pi->NumberOfProcesses].wzFilePath);
-
-                    pi->NumberOfProcesses++;
-
-                    ObDereferenceObject(EProcess);
-                }
-            }
-            Status = STATUS_SUCCESS;
-        }
-        else
-        {
-            DbgPrint("Not Enough Ring3 Memory\r\n");
-            Status = STATUS_BUFFER_TOO_SMALL;
-            break;
-        }
-    }
-
-    */
     return Status;
 }
 
@@ -604,8 +475,7 @@ APEnumProcessInfo(OUT PVOID OutputBuffer, IN UINT32 OutputLength)
 *  Ret  : NTSTATUS
 *  结束进程
 ************************************************************************/
-NTSTATUS
-APTerminateProcess(IN UINT32 ProcessId)
+NTSTATUS APTerminateProcess(IN UINT32 ProcessId)
 {
     NTSTATUS  Status = STATUS_UNSUCCESSFUL;
     
@@ -616,7 +486,6 @@ APTerminateProcess(IN UINT32 ProcessId)
     else
     {
         PEPROCESS EProcess = NULL;
-
         Status = PsLookupProcessByProcessId((HANDLE)ProcessId, &EProcess);
         if (NT_SUCCESS(Status) && APIsValidProcess(EProcess))
         {
@@ -630,14 +499,7 @@ APTerminateProcess(IN UINT32 ProcessId)
 }
 
 
-/************************************************************************
-*  Name : APGetGuiProcess
-*  Param: void
-*  Ret  : PEPROCESS
-*  遍历进程，获得csrss Eprocess
-************************************************************************/
-PEPROCESS
-APGetGuiProcess()
+PEPROCESS APGetCsrssProcess()
 {
     NTSTATUS  Status = STATUS_UNSUCCESSFUL;
     PEPROCESS EProcess = NULL;
@@ -648,9 +510,7 @@ APGetGuiProcess()
         if (NT_SUCCESS(Status) && EProcess && MmIsAddressValid((PVOID)EProcess))
         {
             CHAR *ProcessImageName = (CHAR*)PsGetProcessImageFileName(EProcess);
-            
             ObDereferenceObject(EProcess);
-
             if (!_strnicmp("csrss.exe", ProcessImageName, strlen("csrss.exe")))
             {
                 DbgPrint("EProcess = %p ProcessId = %ld ImageName = %s\r\n", EProcess, PsGetProcessId(EProcess), PsGetProcessImageFileName(EProcess));
@@ -658,6 +518,5 @@ APGetGuiProcess()
             }
         }
     }
-
     return NULL;
 }

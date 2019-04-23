@@ -1,6 +1,7 @@
 #include "PeLoader.h"
+#include "main.h"
 
-extern PLDR_DATA_TABLE_ENTRY   g_PsLoadedModuleList;
+extern GOLBAL_INFO g_DriverInfo;
 
 
 /************************************************************************
@@ -173,8 +174,8 @@ APGetModuleHandle(IN PCHAR szModuleName)
     RtlInitEmptyUnicodeString(&uniModuleName, Buffer, sizeof(Buffer));
     RtlAnsiStringToUnicodeString(&uniModuleName, &ansiModuleName, FALSE);
 
-    for (  TravelListEntry = g_PsLoadedModuleList->InLoadOrderLinks.Flink;
-        TravelListEntry != (PLIST_ENTRY)g_PsLoadedModuleList;
+    for (  TravelListEntry = g_DriverInfo.PsLoadedModuleList->InLoadOrderLinks.Flink;
+        TravelListEntry != (PLIST_ENTRY)g_DriverInfo.PsLoadedModuleList;
         TravelListEntry = TravelListEntry->Flink)
     {
         PLDR_DATA_TABLE_ENTRY LdrDataTableEntry = (PLDR_DATA_TABLE_ENTRY)TravelListEntry;   // 首成员就是InLoadOrderLinks

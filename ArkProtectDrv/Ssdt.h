@@ -23,26 +23,25 @@ typedef struct _SSDT_HOOK_INFORMATION
 } SSDT_HOOK_INFORMATION, *PSSDT_HOOK_INFORMATION;
 
 
-UINT_PTR
-APGetCurrentSsdtAddress();
+//************************************
+// 函数名:   APGetCurrentSsdtAddress
+// 权限：    public 
+// 返回值:   UINT_PTR
+// 说明：    获得SSDT地址（x86 搜索导出表/x64 硬编码，算偏移）
+//************************************
+UINT_PTR APGetCurrentSsdtAddress();
 
-NTSTATUS
-APInitializeSsdtFunctionName();
+NTSTATUS APInitializeSsdtFunctionName();
 
-VOID 
-APFixKiServiceTable(IN PVOID ImageBase, IN PVOID OriginalBase);
+VOID  APFixKiServiceTable(IN PVOID ImageBase, IN PVOID OriginalBase);
 
-NTSTATUS 
-APReloadNtkrnl();
+NTSTATUS APReloadNtkrnl();
 
-NTSTATUS 
-APEnumSsdtHookByReloadNtKrnl(OUT PSSDT_HOOK_INFORMATION shi, IN UINT32 SsdtFunctionCount);
+NTSTATUS APEnumSsdtHookByReloadNtKrnl(OUT PSSDT_HOOK_INFORMATION shi, IN UINT32 SsdtFunctionCount);
 
-NTSTATUS
-APEnumSsdtHook(OUT PVOID OutputBuffer, IN UINT32 OutputLength);
+NTSTATUS APEnumSsdtHook(OUT PVOID OutputBuffer, IN UINT32 OutputLength);
 
-NTSTATUS 
-APResumeSsdtHook(IN UINT32 Ordinal);
+NTSTATUS APResumeSsdtHook(IN UINT32 Ordinal);
 
 #endif // !CXX_Ssdt_H
 

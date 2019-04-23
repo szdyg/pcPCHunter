@@ -1,4 +1,5 @@
-﻿#include "Common.h"
+﻿#include "NtStructs.h"
+#include "Common.h"
 
 
 ULONG_PTR  ObjectTableOffsetOf_EPROCESS = 0;
@@ -18,7 +19,7 @@ ULONG_PTR ObjectTypeOffsetOf_Object_Header =0;
 
 WIN_VERSION GetWindowsVersion()
 {
-    RTL_OSVERSIONINFOEXW osverInfo = {sizeof(osverInfo)}; 
+    RTL_OSVERSIONINFOEXW osverInfo = { 0 };
     pfnRtlGetVersion RtlGetVersion = NULL;
     WIN_VERSION WinVersion;
     WCHAR szRtlGetVersion[] = L"RtlGetVersion";
@@ -95,8 +96,7 @@ WIN_VERSION GetWindowsVersion()
 
 
 
-PVOID 
-    GetFunctionAddressByName(WCHAR *wzFunction)
+PVOID GetFunctionAddressByName(WCHAR *wzFunction)
 {
     UNICODE_STRING uniFunction;  
     PVOID AddrBase = NULL;

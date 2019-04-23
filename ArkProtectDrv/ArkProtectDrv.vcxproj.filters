@@ -19,11 +19,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <Inf Include="ArkProtectDrv.inf">
-      <Filter>Driver Files</Filter>
-    </Inf>
-  </ItemGroup>
-  <ItemGroup>
     <ClInclude Include="main.h">
       <Filter>Header Files</Filter>
     </ClInclude>

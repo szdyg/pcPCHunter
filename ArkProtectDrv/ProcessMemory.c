@@ -1,36 +1,12 @@
 #include "ProcessMemory.h"
 #include "GetSSDTFuncAddress.h"
+#include "main.h"
+#include "ZwQueryVirtualMemory.h"
 #include <ntifs.h>
-extern DYNAMIC_DATA    g_DynamicData;
-typedef struct _MEMORY_BASIC_INFORMATION {
-    PVOID       BaseAddress;           //查询内存块所占的第一个页面基地址
-    PVOID       AllocationBase;        //内存块所占的第一块区域基地址，小于等于BaseAddress，
-    DWORD       AllocationProtect;     //区域被初次保留时赋予的保护属性
-    SIZE_T      RegionSize;            //从BaseAddress开始，具有相同属性的页面的大小，
-    DWORD       State;                 //页面的状态，有三种可能值MEM_COMMIT、MEM_FREE和MEM_RESERVE
-    DWORD       Protect;               //页面的属性，其可能的取值与AllocationProtect相同
-    DWORD       Type;                  //该内存块的类型，有三种可能值：MEM_IMAGE、MEM_MAPPED和MEM_PRIVATE
-} MEMORY_BASIC_INFORMATION, *PMEMORY_BASIC_INFORMATION;
-typedef NTSTATUS
-(*pfnNtQueryVirtualMemory)(HANDLE ProcessHandle, PVOID BaseAddress,
-MEMORY_INFORMATION_CLASS MemoryInformationClass,
-PVOID MemoryInformation,
-SIZE_T MemoryInformationLength,
-PSIZE_T ReturnLength);
+
+extern GOLBAL_INFO g_DriverInfo;
 extern pfnNtQueryVirtualMemory   my_NtQueryVirtualMemoryAddress;
-//
-//typedef enum _MEMORY_INFORMATION_CLASS {
-//    MemoryBasicInformation
-//} MEMORY_INFORMATION_CLASS; 
-//typedef struct _MEMORY_BASIC_INFORMATION {
-//    PVOID BaseAddress;
-//    PVOID AllocationBase;
-//    ULONG AllocationProtect;
-//    SIZE_T RegionSize;
-//    ULONG State;
-//    ULONG Protect;
-//    ULONG Type;
-//} MEMORY_BASIC_INFORMATION, *PMEMORY_BASIC_INFORMATION;
+
 /************************************************************************
 *  Name : APEnumProcessMemoryByZwQueryVirtualMemory
 *  Param: EProcess                  进程结构体
@@ -61,12 +37,12 @@ APEnumProcessMemoryByZwQueryVirtualMemory(IN PEPROCESS EProcess, OUT PPROCESS_ME
         // 处理Wow64程序
         if (PsGetProcessWow64Process(EProcess))
         {
-            g_DynamicData.MaxUserSpaceAddress = 0x7FFFFFFF;
+            g_DriverInfo.DynamicData.MaxUserSpaceAddress = 0x7FFFFFFF;
         }
 
 #endif // _WIN64
 
-        while ( BaseAddress < g_DynamicData.MaxUserSpaceAddress)
+        while ( BaseAddress < g_DriverInfo.DynamicData.MaxUserSpaceAddress)
         {
             MEMORY_BASIC_INFORMATION  mbi = { 0 };
             SIZE_T                      ReturnLength = 0;
@@ -104,7 +80,7 @@ APEnumProcessMemoryByZwQueryVirtualMemory(IN PEPROCESS EProcess, OUT PPROCESS_ME
 
         if (PsGetProcessWow64Process(EProcess))
         {
-            g_DynamicData.MaxUserSpaceAddress = 0x000007FFFFFFFFFF;
+            g_DriverInfo.DynamicData.MaxUserSpaceAddress = 0x000007FFFFFFFFFF;
         }
 
 #endif // _WIN64

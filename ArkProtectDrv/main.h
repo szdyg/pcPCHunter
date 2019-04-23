@@ -1,8 +1,6 @@
+#pragma once
+
 #include <ntifs.h>
-
-#ifndef CXX_main_H
-#define CXX_main_H
-
 #include "Dispatch.h"
 #include "Private.h"
 
@@ -11,15 +9,23 @@
 #define LINK_NAME    L"\\??\\ArkProtectLinkName"
 
 
-NTSTATUS
-APInitializeDynamicData(IN OUT PDYNAMIC_DATA DynamicData);
+typedef struct _GOLBAL_INFO
+{
+    DYNAMIC_DATA            DynamicData;
+    RTL_OSVERSIONINFOW      OsVerSion;
+    PDRIVER_OBJECT          DriverObject;           // 保存全局驱动对象
+    PEPROCESS               SystemEProcess;         // 保存全局系统进程
+    PLDR_DATA_TABLE_ENTRY   PsLoadedModuleList;     // 加载模块List
+}GOLBAL_INFO,*PGOLBAL_INFO;
+NTSTATUS APInitializeDynamicData(IN OUT PDYNAMIC_DATA DynamicData);
 
-NTSTATUS
-APDefaultPassThrough(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp);
+NTSTATUS APDefaultPassThrough(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp);
 
-VOID
-APUnloadDriver(IN PDRIVER_OBJECT DriverObject);
-
-
-
-#endif // !CXX_main_H
+//************************************
+// 函数名:   APUnloadDriver
+// 权限：    public 
+// 返回值:   VOID
+// 参数：    IN PDRIVER_OBJECT DriverObject
+// 说明：    卸载函数
+//************************************
+VOID APUnloadDriver(IN PDRIVER_OBJECT DriverObject);

@@ -1,9 +1,7 @@
 #include "DriverCore.h"
+#include "main.h"
 
-
-extern PDRIVER_OBJECT          g_DriverObject;      // 保存全局驱动对象
-extern DYNAMIC_DATA               g_DynamicData;
-extern PLDR_DATA_TABLE_ENTRY   g_PsLoadedModuleList;
+extern GOLBAL_INFO g_DriverInfo;
 
 POBJECT_TYPE    g_DirectoryObjectType = NULL;  // 目录对象类型地址
 
@@ -33,7 +31,7 @@ APGetDriverModuleLdr(IN const WCHAR* wzDriverName, IN PLDR_DATA_TABLE_ENTRY PsLo
                 TravelEntry && TravelEntry != PsLoadedModuleList && MaxSize--;
                 TravelEntry = (PLDR_DATA_TABLE_ENTRY)TravelEntry->InLoadOrderLinks.Flink)
             {
-                if ((UINT_PTR)TravelEntry->DllBase > g_DynamicData.MinKernelSpaceAddress && TravelEntry->SizeOfImage > 0)
+                if ((UINT_PTR)TravelEntry->DllBase > g_DriverInfo.DynamicData.MinKernelSpaceAddress && TravelEntry->SizeOfImage > 0)
                 {
                     if (APIsUnicodeStringValid(&(TravelEntry->BaseDllName)) && _wcsicmp(TravelEntry->BaseDllName.Buffer, wzDriverName) == 0)
                     {
@@ -88,7 +86,7 @@ APEnumDriverModuleByLdrDataTableEntry(IN PLDR_DATA_TABLE_ENTRY PsLoadedModuleLis
                 TravelEntry && TravelEntry != PsLoadedModuleList && MaxSize--;
                 TravelEntry = (PLDR_DATA_TABLE_ENTRY)TravelEntry->InLoadOrderLinks.Flink)
             {
-                if ((UINT_PTR)TravelEntry->DllBase > g_DynamicData.MinKernelSpaceAddress && TravelEntry->SizeOfImage > 0)
+                if ((UINT_PTR)TravelEntry->DllBase > g_DriverInfo.DynamicData.MinKernelSpaceAddress && TravelEntry->SizeOfImage > 0)
                 {
                     if (DriverCount > di->NumberOfDrivers)
                     {
@@ -152,7 +150,7 @@ APIsDriverInList(IN PDRIVER_INFORMATION di, IN PDRIVER_OBJECT DriverObject, IN U
         if (LdrDataTableEntry &&
             MmIsAddressValid(LdrDataTableEntry) &&
             MmIsAddressValid((PVOID)LdrDataTableEntry->DllBase) &&
-            (UINT_PTR)LdrDataTableEntry->DllBase > g_DynamicData.MinKernelSpaceAddress)
+            (UINT_PTR)LdrDataTableEntry->DllBase > g_DriverInfo.DynamicData.MinKernelSpaceAddress)
         {
             UINT32 i = 0;
             DriverCount = DriverCount > di->NumberOfDrivers ? di->NumberOfDrivers : DriverCount;
@@ -215,7 +213,7 @@ APGetDriverInfo(OUT PDRIVER_INFORMATION di, IN PDRIVER_OBJECT DriverObject, IN U
         if (LdrDataTableEntry &&
             MmIsAddressValid(LdrDataTableEntry) &&
             MmIsAddressValid((PVOID)LdrDataTableEntry->DllBase) &&
-            (UINT_PTR)LdrDataTableEntry->DllBase > g_DynamicData.MinKernelSpaceAddress)
+            (UINT_PTR)LdrDataTableEntry->DllBase > g_DriverInfo.DynamicData.MinKernelSpaceAddress)
         {
             if (DriverCount > di->NumberOfDrivers)
             {
@@ -263,7 +261,7 @@ APIterateDirectoryObject(IN PVOID DirectoryObject, OUT PDRIVER_INFORMATION di, I
                 POBJECT_DIRECTORY_ENTRY ObjectDirectoryEntry;
                 // 所以此处再次遍历链表结构
                 for (  ObjectDirectoryEntry = ObjectDirectory->HashBuckets[i];
-                    (UINT_PTR)ObjectDirectoryEntry > g_DynamicData.MinKernelSpaceAddress && MmIsAddressValid(ObjectDirectoryEntry);
+                    (UINT_PTR)ObjectDirectoryEntry > g_DriverInfo.DynamicData.MinKernelSpaceAddress && MmIsAddressValid(ObjectDirectoryEntry);
                     ObjectDirectoryEntry = ObjectDirectoryEntry->ChainLink)
                 {
                     if (MmIsAddressValid(ObjectDirectoryEntry->Object))
@@ -404,7 +402,7 @@ APEnumDriverInfo(OUT PVOID OutputBuffer, IN UINT32 OutputLength)
     PDRIVER_INFORMATION di = (PDRIVER_INFORMATION)OutputBuffer;
     UINT32 DriverCount = (OutputLength - sizeof(DRIVER_INFORMATION)) / sizeof(DRIVER_ENTRY_INFORMATION);
 
-    Status = APEnumDriverModuleByLdrDataTableEntry(g_PsLoadedModuleList, di, DriverCount);
+    Status = APEnumDriverModuleByLdrDataTableEntry(g_DriverInfo.PsLoadedModuleList, di, DriverCount);
     if (NT_SUCCESS(Status))
     {
         APEnumDriverModuleByIterateDirectoryObject(di, DriverCount);
@@ -447,11 +445,11 @@ APIsValidDriverObject(IN PDRIVER_OBJECT DriverObject)
             DriverObject->Size >= sizeof(DRIVER_OBJECT) &&
             (POBJECT_TYPE)APGetObjectType(DriverObject) == *IoDriverObjectType &&
             MmIsAddressValid(DriverObject->DriverSection) &&
-            (UINT_PTR)DriverObject->DriverSection > g_DynamicData.MinKernelSpaceAddress &&
+            (UINT_PTR)DriverObject->DriverSection > g_DriverInfo.DynamicData.MinKernelSpaceAddress &&
             !(DriverObject->DriverSize & 0x1F) &&
-            DriverObject->DriverSize < g_DynamicData.MinKernelSpaceAddress &&
+            DriverObject->DriverSize < g_DriverInfo.DynamicData.MinKernelSpaceAddress &&
             !((UINT_PTR)(DriverObject->DriverStart) & 0xFFF) &&        // 起始地址都是页对齐
-            (UINT_PTR)DriverObject->DriverStart > g_DynamicData.MinKernelSpaceAddress)
+            (UINT_PTR)DriverObject->DriverStart > g_DriverInfo.DynamicData.MinKernelSpaceAddress)
         {
             PDEVICE_OBJECT DeviceObject = DriverObject->DeviceObject;
             if (DeviceObject)
@@ -495,7 +493,7 @@ APDriverUnloadThreadCallback(IN PVOID lParam)
     {
         if (DriverObject->DriverUnload &&
             MmIsAddressValid(DriverObject->DriverUnload) &&
-            (UINT_PTR)DriverObject->DriverUnload > g_DynamicData.MinKernelSpaceAddress)
+            (UINT_PTR)DriverObject->DriverUnload > g_DriverInfo.DynamicData.MinKernelSpaceAddress)
         {
             PDRIVER_UNLOAD DriverUnloadAddress = DriverObject->DriverUnload;
             
@@ -590,11 +588,11 @@ APUnloadDriverObject(IN UINT_PTR InputBuffer)
     NTSTATUS       Status = STATUS_UNSUCCESSFUL;
     PDRIVER_OBJECT DriverObject = (PDRIVER_OBJECT)InputBuffer;
 
-    if (g_DriverObject == DriverObject)
+    if (g_DriverInfo.DriverObject == DriverObject)
     {
         Status = STATUS_ACCESS_DENIED;
     }
-    else if ((UINT_PTR)DriverObject > g_DynamicData.MinKernelSpaceAddress &&
+    else if ((UINT_PTR)DriverObject > g_DriverInfo.DynamicData.MinKernelSpaceAddress &&
         MmIsAddressValid(DriverObject) &&
         APIsValidDriverObject(DriverObject))
     {

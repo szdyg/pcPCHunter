@@ -252,8 +252,7 @@ APQueryDosDevice(WCHAR *DeviceName, WCHAR *TargetPath, UINT32 MaximumLength)
 }
 
 
-BOOLEAN
-APDosPathToNtPath(IN WCHAR *wzDosFullPath, OUT WCHAR *wzNtFullPath)
+BOOLEAN APDosPathToNtPath(IN WCHAR *wzDosFullPath, OUT WCHAR *wzNtFullPath)
 {
     WCHAR  wzNtDriveHead[3] = { 0 };
     WCHAR  wzDosDriveHead[64] = { 0 };

@@ -3,13 +3,10 @@
 extern PVOID            g_ReloadNtImage;
 extern PVOID            g_ReloadWin32kImage;
 
-DYNAMIC_DATA            g_DynamicData = { 0 };
-PDRIVER_OBJECT          g_DriverObject = NULL;      // 保存全局驱动对象
-PEPROCESS               g_SystemEProcess = NULL;    // 保存全局系统进程
-PLDR_DATA_TABLE_ENTRY   g_PsLoadedModuleList = NULL;// 加载模块List
+GOLBAL_INFO g_DriverInfo = { 0 };
 
-NTSTATUS
-DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING RegisterPath)
+
+NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING RegisterPath)
 {
     NTSTATUS       Status = STATUS_SUCCESS;
     PDEVICE_OBJECT DeviceObject = NULL;
@@ -34,18 +31,14 @@ DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING RegisterPath)
                 DriverObject->MajorFunction[i] = APDefaultPassThrough;
             }
 
-            DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = APIoControlPassThrough;
-
+            DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = APIoControl;
             DriverObject->DriverUnload = APUnloadDriver;
-
-            g_DriverObject = DriverObject;
-
-            g_SystemEProcess = PsGetCurrentProcess();   // 保存系统进程体结构
-
-            g_PsLoadedModuleList = (PLDR_DATA_TABLE_ENTRY)((PLDR_DATA_TABLE_ENTRY)g_DriverObject->DriverSection)->InLoadOrderLinks.Flink;  // 拿到Ldr链表首单元（空头节点）
-
-            Status = APInitializeDynamicData(&g_DynamicData);            // 初始化信息
-
+            g_DriverInfo.DriverObject = DriverObject;
+            g_DriverInfo.SystemEProcess = PsGetCurrentProcess();   // 保存系统进程体结构
+            g_DriverInfo.PsLoadedModuleList = (PLDR_DATA_TABLE_ENTRY)((PLDR_DATA_TABLE_ENTRY)g_DriverInfo.DriverObject->DriverSection)->InLoadOrderLinks.Flink;  // 拿到Ldr链表首单元（空头节点）
+            g_DriverInfo.OsVerSion.dwOSVersionInfoSize = sizeof(RTL_OSVERSIONINFOEXW);
+            RtlGetVersion(&g_DriverInfo.OsVerSion);
+            Status = APInitializeDynamicData(&g_DriverInfo.DynamicData);            // 初始化信息
             DbgPrint("ArkProtect is Starting!!!");
         }
         else
@@ -68,8 +61,7 @@ DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING RegisterPath)
 *  Ret  : NTSTATUS
 *  初始化信息
 ************************************************************************/
-NTSTATUS
-APInitializeDynamicData(IN OUT PDYNAMIC_DATA DynamicData)
+NTSTATUS APInitializeDynamicData(IN OUT PDYNAMIC_DATA DynamicData)
 {
     NTSTATUS                Status = STATUS_SUCCESS;
     RTL_OSVERSIONINFOEXW    VersionInfo = { 0 };
@@ -89,14 +81,8 @@ APInitializeDynamicData(IN OUT PDYNAMIC_DATA DynamicData)
         UINT32 Version = (VersionInfo.dwMajorVersion << 8) | (VersionInfo.dwMinorVersion << 4) | VersionInfo.wServicePackMajor;
         DynamicData->WinVersion = (eWinVersion)Version;
 
-        DbgPrint("%x\r\n", DynamicData->WinVersion);
-
-        switch (Version)
+        if (7==g_DriverInfo.OsVerSion.dwMajorVersion)
         {
-        case WINVER_7:
-        case WINVER_7_SP1:
-        {
-#ifdef _WIN64
             //////////////////////////////////////////////////////////////////////////
             // EProcess
             DynamicData->ThreadListHead_KPROCESS = 0x030;
@@ -127,54 +113,25 @@ APInitializeDynamicData(IN OUT PDYNAMIC_DATA DynamicData)
             DynamicData->HandleTableEntryOffset = 0x010;
 
             //////////////////////////////////////////////////////////////////////////
-
             DynamicData->MaxUserSpaceAddress = 0x000007FFFFFFFFFF;
-
             DynamicData->MinKernelSpaceAddress = 0xFFFFF00000000000;
-#else
-
-            //////////////////////////////////////////////////////////////////////////
-            // EProcess
-            DynamicData->ThreadListHead_KPROCESS = 0x02c;
-            DynamicData->ObjectTable = 0x0f4;
-            DynamicData->SectionObject = 0x128;
-            DynamicData->InheritedFromUniqueProcessId = 0x140;
-            DynamicData->ThreadListHead_EPROCESS = 0x188;
-
-            //////////////////////////////////////////////////////////////////////////
-            // EThread
-            DynamicData->Priority = 0x057;
-            DynamicData->Teb = 0x088;
-            DynamicData->ContextSwitches = 0x064;
-            DynamicData->State = 0x068;
-            DynamicData->PreviousMode = 0x13a;
-            DynamicData->Process = 0x150;
-            DynamicData->ThreadListEntry_KTHREAD = 0x1e0;
-            DynamicData->StartAddress = 0x218;
-            DynamicData->Cid = 0x22c;
-            DynamicData->Win32StartAddress = 0x260;
-            DynamicData->ThreadListEntry_ETHREAD = 0x268;
-            DynamicData->SameThreadApcFlags = 0x288;
-
-            //////////////////////////////////////////////////////////////////////////
-            // Object
-            DynamicData->SizeOfObjectHeader = 0x018;
-
-            DynamicData->HandleTableEntryOffset = 0x008;
-
-            //////////////////////////////////////////////////////////////////////////
-
-            DynamicData->MaxUserSpaceAddress = 0x7FFFFFFF;
-
-            DynamicData->MinKernelSpaceAddress = 0x80000000;
-
-
-#endif
-            break;
         }
-        default:
+        else
+        {
+            switch (Version)
+            {
+            case WINVER_7:
+            case WINVER_7_SP1:
+            {
+
+            }
             break;
+            default:
+                break;
+            }
+
         }
+
 
     }
 
@@ -182,19 +139,16 @@ APInitializeDynamicData(IN OUT PDYNAMIC_DATA DynamicData)
 }
 
 
-NTSTATUS
-APDefaultPassThrough(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
+NTSTATUS APDefaultPassThrough(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
 {
     Irp->IoStatus.Status = STATUS_SUCCESS;
     Irp->IoStatus.Information = 0;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
-
     return STATUS_SUCCESS;
 }
 
 
-VOID
-APUnloadDriver(IN PDRIVER_OBJECT DriverObject)
+VOID APUnloadDriver(IN PDRIVER_OBJECT DriverObject)
 {
     UNICODE_STRING  uniLinkName;
     PDEVICE_OBJECT    NextDeviceObject = NULL;

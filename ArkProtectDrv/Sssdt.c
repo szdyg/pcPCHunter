@@ -1,8 +1,9 @@
 #include "Sssdt.h"
+#include "main.h"
 
-extern DYNAMIC_DATA            g_DynamicData;
-extern PLDR_DATA_TABLE_ENTRY   g_PsLoadedModuleList;
-extern PWCHAR                  g_SssdtFunctionName[0x400];
+extern GOLBAL_INFO g_DriverInfo;
+
+extern PWCHAR g_SssdtFunctionName[0x400];
 
 PVOID    g_ReloadWin32kImage = NULL;       // ÖØÔØWin32kµÄ»ùµØÖ·
 PKSERVICE_TABLE_DESCRIPTOR g_CurrentWin32pServiceTableAddress = NULL;   // µ±Ç°ÏµÍ³ÔËÐÐ×ÅµÄWin32kµÄServiceTable»ùµØÖ·
@@ -11,18 +12,10 @@ UINT_PTR g_OriginalSssdtFunctionAddress[0x400] = { 0 };    // SssdtFunctionÔ­±¾µ
 //UINT32   g_SssdtItem[0x400] = { 0 };                       // Sssdt±íÀïÃæÔ­Ê¼´æ·ÅµÄÊý¾Ý
 
 
-/************************************************************************
-*  Name : APGetCurrentSssdtAddress
-*  Param: void
-*  Ret  : UINT_PTR
-*  »ñµÃSSSDTµØÖ· £¨x86 ËÑË÷µ¼³ö±í/x64 Ó²±àÂë£¬ËãÆ«ÒÆ£©
-************************************************************************/
-UINT_PTR
-APGetCurrentSssdtAddress()
-{
-    UINT_PTR CurrentSssdtAddress = 0;
 
-#ifdef _WIN64
+UINT_PTR APGetCurrentSssdtAddress()
+{
+    UINT_PTR CurrentSssdtAddress = NULL;
     /*
     kd> rdmsr c0000082
     msr[c0000082] = fffff800`03e81640
@@ -30,94 +23,49 @@ APGetCurrentSssdtAddress()
     PUINT8    StartSearchAddress = (PUINT8)__readmsr(0xC0000082);   // fffff800`03ecf640
     PUINT8    EndSearchAddress = StartSearchAddress + 0x500;
     PUINT8    i = NULL;
-    UINT8   v1 = 0, v2 = 0, v3 = 0;
-    INT32   iOffset = 0;    // 002320c7 Æ«ÒÆ²»»á³¬¹ý4×Ö½Ú
+    UINT8     v1 = 0, v2 = 0, v3 = 0;
+    INT32     iOffset = 0;    // 002320c7 Æ«ÒÆ²»»á³¬¹ý4×Ö½Ú
 
-    for (i = StartSearchAddress; i<EndSearchAddress; i++)
+    if (7 == g_DriverInfo.OsVerSion.dwMajorVersion)
     {
-        /*
-        kd> u fffff800`03e81640 l 500
-        nt!KiSystemCall64:
-        fffff800`03e81640 0f01f8          swapgs
-        ......
-
-        nt!KiSystemServiceRepeat:
-        fffff800`03e9c772 4c8d15c7202300  lea     r10,[nt!KeServiceDescriptorTable (fffff800`040ce840)]
-        fffff800`03e9c779 4c8d1d00212300  lea     r11,[nt!KeServiceDescriptorTableShadow (fffff800`040ce880)]
-        fffff800`03e9c780 f7830001000080000000 test dword ptr [rbx+100h],80h
-
-        TargetAddress = CurrentAddress + Offset + 7
-        fffff800`040ce840 = fffff800`03e9c772 + 0x002320c7 + 7
-        */
-
-        if (MmIsAddressValid(i) && MmIsAddressValid(i + 1) && MmIsAddressValid(i + 2))
-        {
-            v1 = *i;
-            v2 = *(i + 1);
-            v3 = *(i + 2);
-            if (v1 == 0x4c && v2 == 0x8d && v3 == 0x1d)        // Ó²±àÂë  lea r11
-            {
-                RtlCopyMemory(&iOffset, i + 3, 4);
-                CurrentSssdtAddress = (UINT_PTR)(iOffset + (UINT64)i + 7);
-                break;
-            }
-        }
-    }
-
-#else
-    UINT32 KeAddSystemServiceTableAddress = 0;
-
-    APGetNtosExportVariableAddress(L"KeAddSystemServiceTable", (PVOID*)&KeAddSystemServiceTableAddress);
-    if (KeAddSystemServiceTableAddress)
-    {
-        PUINT8    StartSearchAddress = (PUINT8)KeAddSystemServiceTableAddress;
-        PUINT8    EndSearchAddress = StartSearchAddress + 0x500;
-        PUINT8    i = NULL;
-        UINT8   v1 = 0, v2 = 0, v3 = 0;
-
-        for (i = StartSearchAddress; i<EndSearchAddress; i++)
+        //Win7
+        for (i = StartSearchAddress; i < EndSearchAddress; i++)
         {
             /*
-            3: kd> u KeAddSystemServiceTable l 10
-            nt!KeAddSystemServiceTable:
-            83fa30a0 8bff            mov     edi,edi
-            83fa30a2 55              push    ebp
-            83fa30a3 8bec            mov     ebp,esp
-            83fa30a5 837d1801        cmp     dword ptr [ebp+18h],1
-            83fa30a9 7760            ja      nt!KeAddSystemServiceTable+0x6b (83fa310b)
-            83fa30ab 8b4518          mov     eax,dword ptr [ebp+18h]
-            83fa30ae c1e004          shl     eax,4
-            83fa30b1 83b8000bf88300  cmp     dword ptr nt!KeServiceDescriptorTable (83f80b00)[eax],0
-            83fa30b8 7551            jne     nt!KeAddSystemServiceTable+0x6b (83fa310b)
-            83fa30ba 8d88400bf883    lea     ecx,nt!KeServiceDescriptorTableShadow (83f80b40)[eax]
-            83fa30c0 833900          cmp     dword ptr [ecx],0
+            kd> u fffff800`03e81640 l 500
+            nt!KiSystemCall64:
+            fffff800`03e81640 0f01f8          swapgs
+            ......
+
+            nt!KiSystemServiceRepeat:
+            fffff800`03e9c772 4c8d15c7202300  lea     r10,[nt!KeServiceDescriptorTable (fffff800`040ce840)]
+            fffff800`03e9c779 4c8d1d00212300  lea     r11,[nt!KeServiceDescriptorTableShadow (fffff800`040ce880)]
+            fffff800`03e9c780 f7830001000080000000 test dword ptr [rbx+100h],80h
+
+            TargetAddress = CurrentAddress + Offset + 7
+            fffff800`040ce840 = fffff800`03e9c772 + 0x002320c7 + 7
             */
 
-            if (MmIsAddressValid(i) && MmIsAddressValid(i + 1) && MmIsAddressValid(i + 6))
+            if (MmIsAddressValid(i) && MmIsAddressValid(i + 1) && MmIsAddressValid(i + 2))
             {
                 v1 = *i;
                 v2 = *(i + 1);
-                v3 = *(i + 6);
-                if (v1 == 0x8d && v2 == 0x88 && v3 == 0x83)        // Ó²±àÂë  lea ecx
+                v3 = *(i + 2);
+                if (v1 == 0x4c && v2 == 0x8d && v3 == 0x1d)        // Ó²±àÂë  lea r11
                 {
-                    RtlCopyMemory(&CurrentSssdtAddress, i + 2, 4);
+                    RtlCopyMemory(&iOffset, i + 3, 4);
+                    CurrentSssdtAddress = (UINT_PTR)(iOffset + (UINT64)i + 7);
                     break;
                 }
             }
         }
-
     }
-
-#endif
-
-    DbgPrint("SSDTAddress is %p\r\n", CurrentSssdtAddress);
 
     return CurrentSssdtAddress;
 }
 
 
-UINT_PTR
-APGetCurrentWin32pServiceTable()
+UINT_PTR APGetCurrentWin32pServiceTable()
 {
     /*
     kd> dq fffff800`040be980
@@ -141,15 +89,8 @@ APGetCurrentWin32pServiceTable()
 }
 
 
-/************************************************************************
-*  Name : APFixWin32pServiceTable
-*  Param: ImageBase                ÐÂÄ£¿é¼ÓÔØ»ùµØÖ· £¨PVOID£©
-*  Param: OriginalBase            Ô­Ä£¿é¼ÓÔØ»ùµØÖ· £¨PVOID£©
-*  Ret  : VOID
-*  ÐÞÕýWin32pServiceTable ÒÔ¼°baseÀïÃæµÄº¯Êý
-************************************************************************/
-VOID
-APFixWin32pServiceTable(IN PVOID ImageBase, IN PVOID OriginalBase)
+
+VOID APFixWin32pServiceTable(IN PVOID ImageBase, IN PVOID OriginalBase)
 {
     UINT_PTR KrnlOffset = (INT64)((UINT_PTR)ImageBase - (UINT_PTR)OriginalBase);
 
@@ -211,25 +152,16 @@ APFixWin32pServiceTable(IN PVOID ImageBase, IN PVOID OriginalBase)
 }
 
 
-/************************************************************************
-*  Name : APReloadWin32k
-*  Param: VOID
-*  Ret  : NTSTATUS
-*  ÖØÔØÄÚºËµÚÒ»Ä£¿é
-************************************************************************/
-NTSTATUS
-APReloadWin32k()
+NTSTATUS APReloadWin32k()
 {
     NTSTATUS    Status = STATUS_SUCCESS;
-
     if (g_ReloadWin32kImage == NULL)
     {
         PVOID          FileBuffer = NULL;
         PLDR_DATA_TABLE_ENTRY Win32kLdr = NULL;
-
-        Win32kLdr = APGetDriverModuleLdr(L"win32k.sys", g_PsLoadedModuleList);
-
         Status = STATUS_UNSUCCESSFUL;
+
+        Win32kLdr = APGetDriverModuleLdr(L"win32k.sys", g_DriverInfo.PsLoadedModuleList);
 
         // 2.¶ÁÈ¡µÚÒ»Ä£¿éÎÄ¼þµ½ÄÚ´æ£¬°´ÄÚ´æ¶ÔÆë¸ñÊ½Íê³ÉPEµÄIAT£¬BaseRelocÐÞ¸´
         FileBuffer = APGetFileBuffer(&Win32kLdr->FullDllName);
@@ -259,8 +191,10 @@ APReloadWin32k()
                         SectionHeader = IMAGE_FIRST_SECTION(NtHeader);
                         for (  i = 0; i < NtHeader->FileHeader.NumberOfSections; i++)
                         {
-                            RtlCopyMemory((PUINT8)g_ReloadWin32kImage + SectionHeader[i].VirtualAddress,
-                                (PUINT8)FileBuffer + SectionHeader[i].PointerToRawData, SectionHeader[i].SizeOfRawData);
+                            RtlCopyMemory(
+                                (PUINT8)g_ReloadWin32kImage + SectionHeader[i].VirtualAddress,
+                                (PUINT8)FileBuffer + SectionHeader[i].PointerToRawData,
+                                SectionHeader[i].SizeOfRawData);
                         }
 
                         // 2.2.ÐÞ¸´µ¼ÈëµØÖ·±í
@@ -298,15 +232,7 @@ APReloadWin32k()
 }
 
 
-/************************************************************************
-*  Name : APEnumSssdtHook
-*  Param: shi              
-*  Param: SssdtFunctionCount
-*  Ret  : NTSTATUS
-*  ÖØÔØWin32k ¼ì²éSssdt Hook
-************************************************************************/
-NTSTATUS
-APEnumSssdtHookByReloadWin32k( PSSSDT_HOOK_INFORMATION shi,  UINT32 SssdtFunctionCount)
+NTSTATUS APEnumSssdtHookByReloadWin32k( PSSSDT_HOOK_INFORMATION shi,  UINT32 SssdtFunctionCount)
 {
     NTSTATUS  Status = STATUS_UNSUCCESSFUL;
     // 1.»ñµÃµ±Ç°µÄSSSDT
@@ -314,7 +240,7 @@ APEnumSssdtHookByReloadWin32k( PSSSDT_HOOK_INFORMATION shi,  UINT32 SssdtFunctio
     if (g_CurrentWin32pServiceTableAddress && MmIsAddressValid(g_CurrentWin32pServiceTableAddress))
     {
         // 2.Attachµ½gui½ø³Ì
-        PEPROCESS GuiEProcess = APGetGuiProcess();
+        PEPROCESS GuiEProcess = APGetCsrssProcess();
         if (GuiEProcess &&MmIsAddressValid(GuiEProcess))
         {
             KAPC_STATE    ApcState = { 0 };
@@ -386,16 +312,7 @@ APEnumSssdtHookByReloadWin32k( PSSSDT_HOOK_INFORMATION shi,  UINT32 SssdtFunctio
     return Status;
 }
 
-
-/************************************************************************
-*  Name : APEnumSssdtHook
-*  Param: OutputBuffer            ring3ÄÚ´æ
-*  Param: OutputLength
-*  Ret  : NTSTATUS
-*  Ã¶¾Ù½ø³ÌÄ£¿é
-************************************************************************/
-NTSTATUS
-APEnumSssdtHook( PVOID OutputBuffer,  UINT32 OutputLength)
+NTSTATUS APEnumSssdtHook( PVOID OutputBuffer,  UINT32 OutputLength)
 {
     NTSTATUS  Status = STATUS_UNSUCCESSFUL;
 
@@ -428,15 +345,7 @@ APEnumSssdtHook( PVOID OutputBuffer,  UINT32 OutputLength)
     return Status;
 }
 
-
-/************************************************************************
-*  Name : APResumeSssdtHook
-*  Param: Ordinal           º¯ÊýÐòºÅ
-*  Ret  : NTSTATUS
-*  »Ö¸´Ö¸¶¨µÄSsdtHook½ø³ÌÄ£¿é
-************************************************************************/
-NTSTATUS
-APResumeSssdtHook(IN UINT32 Ordinal)
+NTSTATUS APResumeSssdtHook(IN UINT32 Ordinal)
 {
     NTSTATUS       Status = STATUS_UNSUCCESSFUL;
 
@@ -497,8 +406,7 @@ APResumeSssdtHook(IN UINT32 Ordinal)
 }
 
 
-UINT_PTR
-APGetSssdtFunctionAddress(IN PCWCHAR wzFunctionName)
+UINT_PTR APGetSssdtFunctionAddress(IN PCWCHAR wzFunctionName)
 {
     UINT32   Ordinal = 0;
     BOOL     bOk = FALSE;

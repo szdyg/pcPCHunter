@@ -132,11 +132,11 @@ typedef struct _LDR_DATA_TABLE_ENTRY
     LIST_ENTRY        InLoadOrderLinks;
     LIST_ENTRY        InMemoryOrderLinks;
     LIST_ENTRY        InInitializationOrderLinks;
-    PVOID            DllBase;
-    PVOID            EntryPoint;
+    PVOID             DllBase;
+    PVOID             EntryPoint;
     UINT32            SizeOfImage;
-    UNICODE_STRING  FullDllName;
-    UNICODE_STRING  BaseDllName;
+    UNICODE_STRING    FullDllName;
+    UNICODE_STRING    BaseDllName;
     UINT32            Flags;
     UINT16            LoadCount;
     UINT16            TlsIndex;
@@ -226,7 +226,8 @@ typedef struct _OBJECT_DIRECTORY_ENTRY
     ULONG HashValue;
 } OBJECT_DIRECTORY_ENTRY, *POBJECT_DIRECTORY_ENTRY;
 
-typedef struct _OBJECT_DIRECTORY {
+typedef struct _OBJECT_DIRECTORY 
+{
     struct _OBJECT_DIRECTORY_ENTRY *HashBuckets[NUMBER_HASH_BUCKETS];
     EX_PUSH_LOCK Lock;
     struct _DEVICE_MAP *DeviceMap;
@@ -236,7 +237,8 @@ typedef struct _OBJECT_DIRECTORY {
 //
 // ObjectDirectory Information Structures for NtQueryDirectoryObject
 //
-typedef struct _OBJECT_DIRECTORY_INFORMATION {
+typedef struct _OBJECT_DIRECTORY_INFORMATION
+{
     UNICODE_STRING Name;
     UNICODE_STRING TypeName;
 } OBJECT_DIRECTORY_INFORMATION, *POBJECT_DIRECTORY_INFORMATION;
@@ -244,7 +246,8 @@ typedef struct _OBJECT_DIRECTORY_INFORMATION {
 //
 // ObjectHeader Structure
 //
-typedef struct _OBJECT_HEADER {
+typedef struct _OBJECT_HEADER 
+{
     LONG_PTR PointerCount;
     union {
         LONG_PTR HandleCount;

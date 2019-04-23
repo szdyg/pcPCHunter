@@ -1,11 +1,9 @@
 #include "ProcessThread.h"
+#include "main.h"
 
-extern DYNAMIC_DATA    g_DynamicData;
-extern PEPROCESS    g_SystemEProcess;
+extern GOLBAL_INFO g_DriverInfo;
 
-typedef
-NTSTATUS
-(*pfnPspTerminateThreadByPointer)(
+typedef NTSTATUS(*pfnPspTerminateThreadByPointer)(
     IN PETHREAD Thread,
     IN NTSTATUS ExitStatus,
     IN BOOLEAN DirectTerminate);
@@ -23,7 +21,7 @@ UINT8
 APChangeThreadMode(IN PETHREAD EThread, IN UINT8 WantedMode)
 {
     // 保存原先模式
-    PUINT8 PreviousMode = (PUINT8)EThread + g_DynamicData.PreviousMode;
+    PUINT8 PreviousMode = (PUINT8)EThread + g_DriverInfo.DynamicData.PreviousMode;
     // 修改为WantedMode
     *PreviousMode = WantedMode;
     return *PreviousMode;
@@ -84,17 +82,17 @@ APGetThreadStartAddress(IN PETHREAD EThread)
 
     __try
     {
-        StartAddress = *(PUINT_PTR)((PUINT8)EThread + g_DynamicData.StartAddress);
+        StartAddress = *(PUINT_PTR)((PUINT8)EThread + g_DriverInfo.DynamicData.StartAddress);
 
-        if (*(PUINT_PTR)((PUINT8)EThread + g_DynamicData.SameThreadApcFlags) & 2)    // StartAddressInvalid
+        if (*(PUINT_PTR)((PUINT8)EThread + g_DriverInfo.DynamicData.SameThreadApcFlags) & 2)    // StartAddressInvalid
         {
-            StartAddress = *(PUINT_PTR)((PUINT8)EThread + g_DynamicData.Win32StartAddress);    // 线程真实入口地址
+            StartAddress = *(PUINT_PTR)((PUINT8)EThread + g_DriverInfo.DynamicData.Win32StartAddress);    // 线程真实入口地址
         }
         else
         {
-            if (*(PUINT_PTR)((PUINT8)EThread + g_DynamicData.StartAddress))
+            if (*(PUINT_PTR)((PUINT8)EThread + g_DriverInfo.DynamicData.StartAddress))
             {
-                StartAddress = *(PUINT_PTR)((PUINT8)EThread + g_DynamicData.StartAddress);
+                StartAddress = *(PUINT_PTR)((PUINT8)EThread + g_DriverInfo.DynamicData.StartAddress);
             }
         }
     }
@@ -130,7 +128,7 @@ APGetProcessThreadInfo(IN PETHREAD EThread, IN PEPROCESS EProcess, OUT PPROCESS_
         }
         else
         {
-            EThreadEProcess = (PEPROCESS)*(PUINT_PTR)((PUINT8)EThread + g_DynamicData.Process);
+            EThreadEProcess = (PEPROCESS)*(PUINT_PTR)((PUINT8)EThread + g_DriverInfo.DynamicData.Process);
         }
 
         if (EProcess == EThreadEProcess &&   // 判断传入进程体对象是否是线程体对象所属的进程体对象
@@ -146,16 +144,16 @@ APGetProcessThreadInfo(IN PETHREAD EThread, IN PEPROCESS EProcess, OUT PPROCESS_
                 }
                 else
                 {
-                    pti->ThreadEntry[CurrentCount].ThreadId = (UINT32)*(PUINT_PTR)((PUINT8)EThread + g_DynamicData.Cid + sizeof(PVOID));
+                    pti->ThreadEntry[CurrentCount].ThreadId = (UINT32)*(PUINT_PTR)((PUINT8)EThread + g_DriverInfo.DynamicData.Cid + sizeof(PVOID));
                 }
 
                 pti->ThreadEntry[CurrentCount].EThread = (UINT_PTR)EThread;
                 //pti->ThreadEntry[CurrentCount].Win32StartAddress = APGetThreadStartAddress(EThread);
-                pti->ThreadEntry[CurrentCount].Win32StartAddress = *(PUINT_PTR)((PUINT8)EThread + g_DynamicData.Win32StartAddress);    // 线程真实入口地址    
-                pti->ThreadEntry[CurrentCount].Teb = *(PUINT_PTR)((PUINT8)EThread + g_DynamicData.Teb);
-                pti->ThreadEntry[CurrentCount].Priority = *((PUINT8)EThread + g_DynamicData.Priority);
-                pti->ThreadEntry[CurrentCount].ContextSwitches = *(PUINT32)((PUINT8)EThread + g_DynamicData.ContextSwitches);
-                pti->ThreadEntry[CurrentCount].State = *((PUINT8)EThread + g_DynamicData.State);
+                pti->ThreadEntry[CurrentCount].Win32StartAddress = *(PUINT_PTR)((PUINT8)EThread + g_DriverInfo.DynamicData.Win32StartAddress);    // 线程真实入口地址    
+                pti->ThreadEntry[CurrentCount].Teb = *(PUINT_PTR)((PUINT8)EThread + g_DriverInfo.DynamicData.Teb);
+                pti->ThreadEntry[CurrentCount].Priority = *((PUINT8)EThread + g_DriverInfo.DynamicData.Priority);
+                pti->ThreadEntry[CurrentCount].ContextSwitches = *(PUINT32)((PUINT8)EThread + g_DriverInfo.DynamicData.ContextSwitches);
+                pti->ThreadEntry[CurrentCount].State = *((PUINT8)EThread + g_DriverInfo.DynamicData.State);
             }
 
             pti->NumberOfThreads++;
@@ -203,7 +201,7 @@ APEnumProcessThreadByIterateFirstLevelHandleTable(IN UINT_PTR TableCode, IN PEPR
     8b404070  863f5021 00000000 863f5d49 00000000
     */
     UINT32 i = 0;
-    PHANDLE_TABLE_ENTRY    HandleTableEntry = (PHANDLE_TABLE_ENTRY)(*(PUINT_PTR)TableCode + g_DynamicData.HandleTableEntryOffset);
+    PHANDLE_TABLE_ENTRY    HandleTableEntry = (PHANDLE_TABLE_ENTRY)(*(PUINT_PTR)TableCode + g_DriverInfo.DynamicData.HandleTableEntryOffset);
 
     for ( i = 0; i < 0x200; i++)        // 512个表项
     {
@@ -368,7 +366,7 @@ NTSTATUS
 APEnumProcessThreadByIterateThreadListHead(IN PEPROCESS EProcess, OUT PPROCESS_THREAD_INFORMATION pti, IN UINT32 ThreadCount)
 {
     NTSTATUS    Status = STATUS_UNSUCCESSFUL;
-    PLIST_ENTRY ThreadListHead = (PLIST_ENTRY)((PUINT8)EProcess + g_DynamicData.ThreadListHead_KPROCESS);
+    PLIST_ENTRY ThreadListHead = (PLIST_ENTRY)((PUINT8)EProcess + g_DriverInfo.DynamicData.ThreadListHead_KPROCESS);
     
     if (ThreadListHead && MmIsAddressValid(ThreadListHead) && MmIsAddressValid(ThreadListHead->Flink))
     {
@@ -379,14 +377,14 @@ APEnumProcessThreadByIterateThreadListHead(IN PEPROCESS EProcess, OUT PPROCESS_T
             MmIsAddressValid(ThreadListEntry) && ThreadListEntry != ThreadListHead && MaxCount--;
             ThreadListEntry = ThreadListEntry->Flink)
         {
-            PETHREAD EThread = (PETHREAD)((PUINT8)ThreadListEntry - g_DynamicData.ThreadListEntry_KTHREAD);
+            PETHREAD EThread = (PETHREAD)((PUINT8)ThreadListEntry - g_DriverInfo.DynamicData.ThreadListEntry_KTHREAD);
             APGetProcessThreadInfo(EThread, EProcess, pti, ThreadCount);
         }
 
     //    KeLowerIrql(OldIrql);
     }
 
-    ThreadListHead = (PLIST_ENTRY)((PUINT8)EProcess + g_DynamicData.ThreadListHead_EPROCESS);
+    ThreadListHead = (PLIST_ENTRY)((PUINT8)EProcess + g_DriverInfo.DynamicData.ThreadListHead_EPROCESS);
     if (ThreadListHead && MmIsAddressValid(ThreadListHead) && MmIsAddressValid(ThreadListHead->Flink))
     {
     //    KIRQL       OldIrql = KeRaiseIrqlToDpcLevel();
@@ -396,7 +394,7 @@ APEnumProcessThreadByIterateThreadListHead(IN PEPROCESS EProcess, OUT PPROCESS_T
             MmIsAddressValid(ThreadListEntry) && ThreadListEntry != ThreadListHead && MaxCount--;
             ThreadListEntry = ThreadListEntry->Flink)
         {
-            PETHREAD EThread = (PETHREAD)((PUINT8)ThreadListEntry - g_DynamicData.ThreadListEntry_KTHREAD);
+            PETHREAD EThread = (PETHREAD)((PUINT8)ThreadListEntry - g_DriverInfo.DynamicData.ThreadListEntry_KTHREAD);
             APGetProcessThreadInfo(EThread, EProcess, pti, ThreadCount);
         }
 
@@ -437,7 +435,7 @@ APEnumProcessThread(IN UINT32 ProcessId, OUT PVOID OutputBuffer, IN UINT32 Outpu
     }
     else if (ProcessId == 4)
     {
-        EProcess = g_SystemEProcess;
+        EProcess = g_DriverInfo.SystemEProcess;
         Status = STATUS_SUCCESS;
     }
     else
@@ -476,7 +474,7 @@ APEnumProcessThread(IN UINT32 ProcessId, OUT PVOID OutputBuffer, IN UINT32 Outpu
         }
     }
 
-    if (EProcess && EProcess != g_SystemEProcess)
+    if (EProcess && EProcess != g_DriverInfo.SystemEProcess)
     {
         ObDereferenceObject(EProcess);
     }
@@ -557,7 +555,7 @@ APTerminateProcessByIterateThreadListHead(IN PEPROCESS EProcess)
     pfnPspTerminateThreadByPointer PspTerminateThreadByPointer = (pfnPspTerminateThreadByPointer)APGetPspTerminateThreadByPointerAddress();
     if (PspTerminateThreadByPointer && MmIsAddressValid((PVOID)PspTerminateThreadByPointer))
     {
-        PLIST_ENTRY ThreadListHead = (PLIST_ENTRY)((PUINT8)EProcess + g_DynamicData.ThreadListHead_KPROCESS);
+        PLIST_ENTRY ThreadListHead = (PLIST_ENTRY)((PUINT8)EProcess + g_DriverInfo.DynamicData.ThreadListHead_KPROCESS);
 
         if (ThreadListHead && MmIsAddressValid(ThreadListHead) && MmIsAddressValid(ThreadListHead->Flink))
         {
@@ -568,14 +566,14 @@ APTerminateProcessByIterateThreadListHead(IN PEPROCESS EProcess)
                 MmIsAddressValid(ThreadListEntry) && ThreadListEntry != ThreadListHead && MaxCount--;
                 ThreadListEntry = ThreadListEntry->Flink)
             {
-                PETHREAD EThread = (PETHREAD)((PUINT8)ThreadListEntry - g_DynamicData.ThreadListEntry_KTHREAD);
+                PETHREAD EThread = (PETHREAD)((PUINT8)ThreadListEntry - g_DriverInfo.DynamicData.ThreadListEntry_KTHREAD);
                 Status = PspTerminateThreadByPointer(EThread, 0, TRUE);   // 结束线程
             }
 
         //    KeLowerIrql(OldIrql);
         }
 
-        ThreadListHead = (PLIST_ENTRY)((PUINT8)EProcess + g_DynamicData.ThreadListHead_EPROCESS);
+        ThreadListHead = (PLIST_ENTRY)((PUINT8)EProcess + g_DriverInfo.DynamicData.ThreadListHead_EPROCESS);
         if (ThreadListHead && MmIsAddressValid(ThreadListHead) && MmIsAddressValid(ThreadListHead->Flink))
         {
         //    KIRQL       OldIrql = KeRaiseIrqlToDpcLevel();
@@ -585,7 +583,7 @@ APTerminateProcessByIterateThreadListHead(IN PEPROCESS EProcess)
                 MmIsAddressValid(ThreadListEntry) && ThreadListEntry != ThreadListHead && MaxCount--;
                 ThreadListEntry = ThreadListEntry->Flink)
             {
-                PETHREAD EThread = (PETHREAD)((PUINT8)ThreadListEntry - g_DynamicData.ThreadListEntry_KTHREAD);
+                PETHREAD EThread = (PETHREAD)((PUINT8)ThreadListEntry - g_DriverInfo.DynamicData.ThreadListEntry_KTHREAD);
                 Status = PspTerminateThreadByPointer(EThread, 0, TRUE);   // 结束线程
             }
 

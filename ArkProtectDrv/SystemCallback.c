@@ -1,17 +1,12 @@
 #include "SystemCallback.h"
+#include "main.h"
 
-extern DYNAMIC_DATA g_DynamicData;
+extern GOLBAL_INFO g_DriverInfo;
 
 
 
-/************************************************************************
-*  Name : APGetPspCreateProcessNotifyRoutineAddress
-*  Param: void
-*  Ret  : UINT_PTR
-*  获得PspCreateProcessNotifyRoutine
-************************************************************************/
-UINT_PTR
-APGetPspCreateProcessNotifyRoutineAddress()
+
+UINT_PTR APGetPspCreateProcessNotifyRoutineAddress()
 {
     UINT_PTR PspCreateProcessNotifyRoutine = 0;
     UINT_PTR PsSetCreateProcessNotifyRoutine = 0;
@@ -124,15 +119,7 @@ APGetPspCreateProcessNotifyRoutineAddress()
 }
 
 
-/************************************************************************
-*  Name : APGetCreateProcessCallbackNotify
-*  Param: sci
-*  Param: CallbackCount
-*  Ret  : BOOLEAN
-*  枚举创建进程回调
-************************************************************************/
-BOOLEAN
-APGetCreateProcessCallbackNotify( PSYS_CALLBACK_INFORMATION sci,  UINT32 CallbackCount)
+BOOLEAN APGetCreateProcessCallbackNotify( PSYS_CALLBACK_INFORMATION sci,  UINT32 CallbackCount)
 {
     UINT_PTR PspCreateProcessNotifyRoutine = APGetPspCreateProcessNotifyRoutineAddress();
 
@@ -155,7 +142,7 @@ APGetCreateProcessCallbackNotify( PSYS_CALLBACK_INFORMATION sci,  UINT32 Callbac
             {
                 NotifyItem = *(PUINT_PTR)(PspCreateProcessNotifyRoutine + i * sizeof(UINT_PTR));
 
-                if (NotifyItem > g_DynamicData.MinKernelSpaceAddress &&
+                if (NotifyItem > g_DriverInfo.DynamicData.MinKernelSpaceAddress &&
                     MmIsAddressValid((PVOID)(NotifyItem & ~7)))
                 {
 #ifdef _WIN64
@@ -188,8 +175,7 @@ APGetCreateProcessCallbackNotify( PSYS_CALLBACK_INFORMATION sci,  UINT32 Callbac
 *  Ret  : UINT_PTR
 *  获得PspCreateThreadNotifyRoutine
 ************************************************************************/
-UINT_PTR
-APGetPspCreateThreadNotifyRoutineAddress()
+UINT_PTR APGetPspCreateThreadNotifyRoutineAddress()
 {
     // 在 PsSetCreateThreadNotifyRoutine 中使用了 PspCreateThreadNotifyRoutine 硬编码加偏移获得
     /*
@@ -258,15 +244,7 @@ APGetPspCreateThreadNotifyRoutineAddress()
 }
 
 
-/************************************************************************
-*  Name : APGetCreateThreadCallbackNotify
-*  Param: sci
-*  Param: CallbackCount
-*  Ret  : BOOLEAN
-*  枚举创建线程回调
-************************************************************************/
-BOOLEAN
-APGetCreateThreadCallbackNotify( PSYS_CALLBACK_INFORMATION sci,  UINT32 CallbackCount)
+BOOLEAN APGetCreateThreadCallbackNotify( PSYS_CALLBACK_INFORMATION sci,  UINT32 CallbackCount)
 {
     UINT_PTR PspCreateThreadNotifyRoutine = APGetPspCreateThreadNotifyRoutineAddress();
 
@@ -289,15 +267,9 @@ APGetCreateThreadCallbackNotify( PSYS_CALLBACK_INFORMATION sci,  UINT32 Callback
             {
                 NotifyItem = *(PUINT_PTR)(PspCreateThreadNotifyRoutine + i * sizeof(UINT_PTR));
 
-                if (NotifyItem > g_DynamicData.MinKernelSpaceAddress &&
-                    MmIsAddressValid((PVOID)(NotifyItem & ~7)))
+                if (NotifyItem > g_DriverInfo.DynamicData.MinKernelSpaceAddress &&MmIsAddressValid((PVOID)(NotifyItem & ~7)))
                 {
-#ifdef _WIN64
                     CallbackAddress = *(PUINT_PTR)(NotifyItem & ~7);
-#else
-                    CallbackAddress = *(PUINT_PTR)((NotifyItem & ~7) + sizeof(UINT32));
-#endif // _WIN64
-
                     if (CallbackAddress && MmIsAddressValid((PVOID)CallbackAddress))
                     {
                         if (CallbackCount > sci->NumberOfCallbacks)
@@ -317,14 +289,8 @@ APGetCreateThreadCallbackNotify( PSYS_CALLBACK_INFORMATION sci,  UINT32 Callback
 }
 
 
-/************************************************************************
-*  Name : APGetPspLoadImageNotifyRoutineAddress
-*  Param: void
-*  Ret  : UINT_PTR
-*  获得PspLoadImageNotifyRoutine
-************************************************************************/
-UINT_PTR
-APGetPspLoadImageNotifyRoutineAddress()
+
+UINT_PTR APGetPspLoadImageNotifyRoutineAddress()
 {
     // 在 PsSetLoadImageNotifyRoutine 中使用了 PspLoadImageNotifyRoutine 硬编码加偏移获得
     /*
@@ -395,15 +361,7 @@ APGetPspLoadImageNotifyRoutineAddress()
 }
 
 
-/************************************************************************
-*  Name : APGetLoadImageCallbackNotify
-*  Param: sci
-*  Param: CallbackCount
-*  Ret  : BOOLEAN
-*  枚举加载模块回调
-************************************************************************/
-BOOLEAN
-APGetLoadImageCallbackNotify( PSYS_CALLBACK_INFORMATION sci,  UINT32 CallbackCount)
+BOOLEAN APGetLoadImageCallbackNotify( PSYS_CALLBACK_INFORMATION sci,  UINT32 CallbackCount)
 {
     UINT_PTR PspLoadImageNotifyRoutine = APGetPspLoadImageNotifyRoutineAddress();
 
@@ -426,7 +384,7 @@ APGetLoadImageCallbackNotify( PSYS_CALLBACK_INFORMATION sci,  UINT32 CallbackCou
             {
                 NotifyItem = *(PUINT_PTR)(PspLoadImageNotifyRoutine + i * sizeof(UINT_PTR));
 
-                if (NotifyItem > g_DynamicData.MinKernelSpaceAddress &&
+                if (NotifyItem > g_DriverInfo.DynamicData.MinKernelSpaceAddress &&
                     MmIsAddressValid((PVOID)(NotifyItem & ~7)))
                 {
 #ifdef _WIN64
@@ -454,18 +412,9 @@ APGetLoadImageCallbackNotify( PSYS_CALLBACK_INFORMATION sci,  UINT32 CallbackCou
 }
 
 
-//
-// Win7之后 都是ListEntry结构 xp之前 都是Vector数组结构
-//
-/************************************************************************
-*  Name : APGetCallbackListHeadAddress
-*  Param: void
-*  Ret  : UINT_PTR
-*  获得CallbackListHead
-************************************************************************/
-UINT_PTR
-APGetCallbackListHeadAddress()
+UINT_PTR APGetCallbackListHeadAddress()
 {
+    // Win7之后 都是ListEntry结构 xp之前 都是Vector数组结构
     /*
     Win7 x64:
     0: kd> u CmUnRegisterCallback l 30
@@ -544,15 +493,7 @@ APGetCallbackListHeadAddress()
 }
 
 
-/************************************************************************
-*  Name : APGetRegisterCallbackNotify
-*  Param: sci
-*  Param: CallbackCount
-*  Ret  : BOOLEAN
-*  枚举注册表回调
-************************************************************************/
-BOOLEAN
-APGetRegisterCallbackNotify(OUT PSYS_CALLBACK_INFORMATION sci, IN UINT32 CallbackCount)
+BOOLEAN APGetRegisterCallbackNotify(OUT PSYS_CALLBACK_INFORMATION sci, IN UINT32 CallbackCount)
 {
     UINT_PTR CallbackListHead = APGetCallbackListHeadAddress();
 
@@ -590,7 +531,7 @@ APGetRegisterCallbackNotify(OUT PSYS_CALLBACK_INFORMATION sci, IN UINT32 Callbac
             Notify = (PCM_NOTIFY_ENTRY)NotifyListEntry;
             if (MmIsAddressValid(Notify))
             {
-                if (MmIsAddressValid((PVOID)(Notify->Function)) && Notify->Function > g_DynamicData.MinKernelSpaceAddress)
+                if (MmIsAddressValid((PVOID)(Notify->Function)) && Notify->Function > g_DriverInfo.DynamicData.MinKernelSpaceAddress)
                 {
                     if (CallbackCount > sci->NumberOfCallbacks)
                     {
@@ -614,8 +555,7 @@ APGetRegisterCallbackNotify(OUT PSYS_CALLBACK_INFORMATION sci, IN UINT32 Callbac
 *  Ret  : UINT_PTR
 *  获得KeBugCheckCallbackListHead
 ************************************************************************/
-UINT_PTR
-APGetKeBugCheckCallbackListHeadAddress()
+UINT_PTR APGetKeBugCheckCallbackListHeadAddress()
 {
     /*
     Win7 x64:
@@ -695,15 +635,7 @@ APGetKeBugCheckCallbackListHeadAddress()
 }
 
 
-/************************************************************************
-*  Name : APGetBugCheckCallbackNotify
-*  Param: sci
-*  Param: CallbackCount
-*  Ret  : BOOLEAN
-*  枚举错误检测回调
-************************************************************************/
-BOOLEAN
-APGetBugCheckCallbackNotify(OUT PSYS_CALLBACK_INFORMATION sci, IN UINT32 CallbackCount)
+BOOLEAN APGetBugCheckCallbackNotify(OUT PSYS_CALLBACK_INFORMATION sci, IN UINT32 CallbackCount)
 {
     UINT_PTR KeBugCheckCallbackListHead = APGetKeBugCheckCallbackListHeadAddress();
 
@@ -763,14 +695,7 @@ APGetBugCheckCallbackNotify(OUT PSYS_CALLBACK_INFORMATION sci, IN UINT32 Callbac
 //
 
 
-/************************************************************************
-*  Name : APGetKeBugCheckReasonCallbackListHeadAddress
-*  Param: void
-*  Ret  : UINT_PTR
-*  获得KeBugCheckReasonCallbackListHead
-************************************************************************/
-UINT_PTR
-APGetKeBugCheckReasonCallbackListHeadAddress()
+UINT_PTR APGetKeBugCheckReasonCallbackListHeadAddress()
 {
     /*
     Win7 x64:
@@ -858,8 +783,7 @@ APGetKeBugCheckReasonCallbackListHeadAddress()
 *  Ret  : BOOLEAN
 *  枚举带原因的错误检测回调
 ************************************************************************/
-BOOLEAN
-APGetBugCheckReasonCallbackNotify(OUT PSYS_CALLBACK_INFORMATION sci, IN UINT32 CallbackCount)
+BOOLEAN APGetBugCheckReasonCallbackNotify(OUT PSYS_CALLBACK_INFORMATION sci, IN UINT32 CallbackCount)
 {
     UINT_PTR KeBugCheckReasonCallbackListHead = APGetKeBugCheckReasonCallbackListHeadAddress();
 
@@ -914,14 +838,7 @@ APGetBugCheckReasonCallbackNotify(OUT PSYS_CALLBACK_INFORMATION sci, IN UINT32 C
 }
 
 
-/************************************************************************
-*  Name : APGetShutdownDispatch
-*  Param: DeviceObject
-*  Ret  : UINT_PTR
-*  通过设备对象获得关机派遣函数
-************************************************************************/
-UINT_PTR
-APGetShutdownDispatch(IN PDEVICE_OBJECT DeviceObject)
+UINT_PTR APGetShutdownDispatch(IN PDEVICE_OBJECT DeviceObject)
 {
     PDRIVER_OBJECT DriverObject = NULL;
     UINT_PTR ShutdownDispatch = 0;
@@ -939,14 +856,7 @@ APGetShutdownDispatch(IN PDEVICE_OBJECT DeviceObject)
 }
 
 
-/************************************************************************
-*  Name : APGetIopNotifyShutdownQueueHeadAddress
-*  Param: void
-*  Ret  : UINT_PTR
-*  获得IopNotifyShutdownQueueHead
-************************************************************************/
-UINT_PTR
-APGetIopNotifyShutdownQueueHeadAddress()
+UINT_PTR APGetIopNotifyShutdownQueueHeadAddress()
 {
     /*
     Win7 x64:
@@ -1013,15 +923,7 @@ APGetIopNotifyShutdownQueueHeadAddress()
 }
 
 
-/************************************************************************
-*  Name : APGetShutDownCallbackNotify
-*  Param: sci
-*  Param: CallbackCount
-*  Ret  : BOOLEAN
-*  枚举关机回调
-************************************************************************/
-BOOLEAN
-APGetShutDownCallbackNotify(OUT PSYS_CALLBACK_INFORMATION sci, IN UINT32 CallbackCount)
+BOOLEAN APGetShutDownCallbackNotify(OUT PSYS_CALLBACK_INFORMATION sci, IN UINT32 CallbackCount)
 {
     UINT_PTR IopNotifyShutdownQueueHead = APGetIopNotifyShutdownQueueHeadAddress();
 
@@ -1058,14 +960,7 @@ APGetShutDownCallbackNotify(OUT PSYS_CALLBACK_INFORMATION sci, IN UINT32 Callbac
 }
 
 
-/************************************************************************
-*  Name : APGetIopNotifyLastChanceShutdownQueueHeadAddress
-*  Param: void
-*  Ret  : UINT_PTR
-*  获得IopNotifyLastChanceShutdownQueueHead
-************************************************************************/
-UINT_PTR
-APGetIopNotifyLastChanceShutdownQueueHeadAddress()
+UINT_PTR APGetIopNotifyLastChanceShutdownQueueHeadAddress()
 {
     /*
     Win7 x64:
@@ -1135,15 +1030,7 @@ APGetIopNotifyLastChanceShutdownQueueHeadAddress()
 }
 
 
-/************************************************************************
-*  Name : APGetLastChanceShutDownCallbackNotify
-*  Param: sci
-*  Param: CallbackCount
-*  Ret  : BOOLEAN
-*  枚举最后机会的关机回调
-************************************************************************/
-BOOLEAN
-APGetLastChanceShutDownCallbackNotify(  PSYS_CALLBACK_INFORMATION sci,  UINT32 CallbackCount)
+BOOLEAN APGetLastChanceShutDownCallbackNotify(  PSYS_CALLBACK_INFORMATION sci,  UINT32 CallbackCount)
 {
     UINT_PTR IopNotifyLastChanceShutdownQueueHead = APGetIopNotifyLastChanceShutdownQueueHeadAddress();
 
@@ -1180,15 +1067,7 @@ APGetLastChanceShutDownCallbackNotify(  PSYS_CALLBACK_INFORMATION sci,  UINT32 C
 }
 
 
-/************************************************************************
-*  Name : APEnumSystemCallback
-*  Param:  putBuffer            Ring3Buffer      （OUT）
-*  Param: OutputLength            Ring3BufferLength（IN）
-*  Ret  : NTSTATUS
-*  枚举所有的系统回调
-************************************************************************/
-NTSTATUS
-APEnumSystemCallback(  PVOID OutputBuffer,  UINT32 OutputLength)
+NTSTATUS APEnumSystemCallback(PVOID OutputBuffer,UINT32 OutputLength)
 {
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
@@ -1196,13 +1075,13 @@ APEnumSystemCallback(  PVOID OutputBuffer,  UINT32 OutputLength)
 
     UINT32 CallbackCount = (OutputLength - sizeof(SYS_CALLBACK_INFORMATION)) / sizeof(SYS_CALLBACK_ENTRY_INFORMATION);
 
-    APGetCreateProcessCallbackNotify(sci, CallbackCount);   // 创建进程回调
-    APGetCreateThreadCallbackNotify(sci, CallbackCount);    // 创建线程回调
-    APGetLoadImageCallbackNotify(sci, CallbackCount);         // 映像加载 卸载回调
-    APGetRegisterCallbackNotify(sci, CallbackCount);       // 注册表回调
-    APGetBugCheckCallbackNotify(sci, CallbackCount);       // 错误检查回调
-    APGetBugCheckReasonCallbackNotify(sci, CallbackCount); // 同上
-    APGetShutDownCallbackNotify(sci, CallbackCount);       // 关机回调
+    APGetCreateProcessCallbackNotify(sci, CallbackCount);       // 创建进程回调
+    APGetCreateThreadCallbackNotify(sci, CallbackCount);        // 创建线程回调
+    APGetLoadImageCallbackNotify(sci, CallbackCount);           // 映像加载 卸载回调
+    APGetRegisterCallbackNotify(sci, CallbackCount);            // 注册表回调
+    APGetBugCheckCallbackNotify(sci, CallbackCount);            // 错误检查回调
+    APGetBugCheckReasonCallbackNotify(sci, CallbackCount);      // 同上
+    APGetShutDownCallbackNotify(sci, CallbackCount);            // 关机回调
     APGetLastChanceShutDownCallbackNotify(sci, CallbackCount);  // 同上
 
     // 注销回调

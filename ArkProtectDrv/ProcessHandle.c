@@ -1,8 +1,7 @@
 #include "ProcessHandle.h"
+#include "main.h"
 
-
-extern DYNAMIC_DATA    g_DynamicData;
-
+extern GOLBAL_INFO g_DriverInfo;
 
 /************************************************************************
 *  Name : APGetHandleType
@@ -142,10 +141,10 @@ APGetProcessHandleInfo(IN PEPROCESS EProcess, IN HANDLE Handle, IN PVOID Object,
         phi->HandleEntry[phi->NumberOfHandles].Handle = Handle;
         phi->HandleEntry[phi->NumberOfHandles].Object = Object;
 
-        if (MmIsAddressValid((PUINT8)Object - g_DynamicData.SizeOfObjectHeader))
+        if (MmIsAddressValid((PUINT8)Object - g_DriverInfo.DynamicData.SizeOfObjectHeader))
         {
             //phi->HandleEntry[phi->NumberOfHandles].ReferenceCount = (UINT32)*(PUINT_PTR)((PUINT8)Object - g_DynamicData.SizeOfObjectHeader);
-            phi->HandleEntry[phi->NumberOfHandles].ReferenceCount = (UINT32)((POBJECT_HEADER)((PUINT8)Object - g_DynamicData.SizeOfObjectHeader))->PointerCount;
+            phi->HandleEntry[phi->NumberOfHandles].ReferenceCount = (UINT32)((POBJECT_HEADER)((PUINT8)Object - g_DriverInfo.DynamicData.SizeOfObjectHeader))->PointerCount;
         }
         else
         {

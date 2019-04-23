@@ -1,7 +1,7 @@
 #include "Ssdt.h"
+#include "main.h"
 
-extern DYNAMIC_DATA            g_DynamicData;
-extern PLDR_DATA_TABLE_ENTRY   g_PsLoadedModuleList;
+extern GOLBAL_INFO g_DriverInfo;
 
 PVOID    g_ReloadNtImage = NULL;       // 重载内核的基地址
 PKSERVICE_TABLE_DESCRIPTOR g_CurrentSsdtAddress = NULL;  // 当前系统运行着的Ntos的Ssdt基地址
@@ -11,14 +11,7 @@ UINT_PTR g_OriginalSsdtFunctionAddress[0x200] = { 0 };   // SsdtFunction原本的地
 WCHAR    g_SsdtFunctionName[0x200][100] = { 0 };          // Ssdt函数名称表（按序号存放）
 
 
-/************************************************************************
-*  Name : APGetCurrentSsdtAddress
-*  Param: void
-*  Ret  : UINT_PTR
-*  获得SSDT地址 （x86 搜索导出表/x64 硬编码，算偏移）
-************************************************************************/
-UINT_PTR
-APGetCurrentSsdtAddress()
+UINT_PTR APGetCurrentSsdtAddress()
 {
     if (g_CurrentSsdtAddress == NULL)
     {
@@ -30,7 +23,7 @@ APGetCurrentSsdtAddress()
         PUINT8    StartSearchAddress = (PUINT8)__readmsr(0xC0000082);   // fffff800`03ecf640
         PUINT8    EndSearchAddress = StartSearchAddress + 0x500;
         PUINT8    i = NULL;
-        UINT8   v1 = 0, v2 = 0, v3 = 0;
+        UINT8     v1 = 0, v2 = 0, v3 = 0;
         INT32   iOffset = 0;    // 002320c7 偏移不会超过4字节
 
         for (i = StartSearchAddress; i<EndSearchAddress; i++)
@@ -89,8 +82,7 @@ APGetCurrentSsdtAddress()
 *  Ret  : NTSTATUS
 *  初始化保存SsdtFunctionNamde的全局数组
 ************************************************************************/
-NTSTATUS
-APInitializeSsdtFunctionName()
+NTSTATUS APInitializeSsdtFunctionName()
 {
     NTSTATUS  Status = STATUS_SUCCESS;
 
@@ -343,7 +335,7 @@ APReloadNtkrnl()
         Status = STATUS_UNSUCCESSFUL;
 
         // 1.获得第一模块信息
-        NtLdr = (PLDR_DATA_TABLE_ENTRY)g_PsLoadedModuleList->InLoadOrderLinks.Flink;   // Ntkrnl
+        NtLdr = (PLDR_DATA_TABLE_ENTRY)g_DriverInfo.PsLoadedModuleList->InLoadOrderLinks.Flink;   // Ntkrnl
 
         DbgPrint("模块名称:%S\r\n", NtLdr->BaseDllName.Buffer);
         DbgPrint("模块路径:%S\r\n", NtLdr->FullDllName.Buffer);

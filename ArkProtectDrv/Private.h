@@ -11,7 +11,8 @@
 #define MAX_DOS_DRIVES 26
 #define RESUME_ALL_HOOKS 8080
 
-typedef enum _eWinVersion {
+typedef enum _eWinVersion 
+{
     WINVER_7 = 0x0610,
     WINVER_7_SP1 = 0x0611,
     WINVER_8 = 0x0620,

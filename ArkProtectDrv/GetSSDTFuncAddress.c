@@ -1,4 +1,5 @@
 #include "GetSSDTFuncAddress.h"
+#include "ZwQueryVirtualMemory.h"
 #include "Common.h"
 
 ULONG_PTR   IndexOffset = 0;

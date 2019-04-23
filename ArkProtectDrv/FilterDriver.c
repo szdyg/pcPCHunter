@@ -1,6 +1,7 @@
 #include "FilterDriver.h"
+#include "main.h"
 
-extern DYNAMIC_DATA    g_DynamicData;
+extern GOLBAL_INFO g_DriverInfo;
 
 UINT32 g_VolumeStartCount = 0;
 UINT32 g_FileSystemStartCount = 0;
@@ -87,7 +88,7 @@ APGetFilterDriverInfo(IN PDEVICE_OBJECT HighDeviceObject, IN PDRIVER_OBJECT LowD
             // 过滤驱动对象路径
             LdrDataTableEntry = (PLDR_DATA_TABLE_ENTRY)HighDriverObject->DriverSection;
 
-            if ((UINT_PTR)LdrDataTableEntry > g_DynamicData.MinKernelSpaceAddress)
+            if ((UINT_PTR)LdrDataTableEntry > g_DriverInfo.DynamicData.MinKernelSpaceAddress)
             {
                 if (APIsUnicodeStringValid(&(LdrDataTableEntry->FullDllName)))
                 {
