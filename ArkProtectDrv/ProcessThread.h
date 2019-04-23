@@ -10,20 +10,20 @@
 
 typedef struct _PROCESS_THREAD_ENTRY_INFORMATION
 {
-	UINT_PTR EThread;
-	UINT32   ThreadId;
-	UINT_PTR Teb;
-	UINT8    Priority;
-	UINT_PTR Win32StartAddress;
-	UINT32   ContextSwitches;
-	UINT8    State;
+    UINT_PTR EThread;
+    UINT32   ThreadId;
+    UINT_PTR Teb;
+    UINT8    Priority;
+    UINT_PTR Win32StartAddress;
+    UINT32   ContextSwitches;
+    UINT8    State;
 } PROCESS_THREAD_ENTRY_INFORMATION, *PPROCESS_THREAD_ENTRY_INFORMATION;
 
 
 typedef struct _PROCESS_THREAD_INFORMATION
 {
-	UINT32                           NumberOfThreads;
-	PROCESS_THREAD_ENTRY_INFORMATION ThreadEntry[1];
+    UINT32                           NumberOfThreads;
+    PROCESS_THREAD_ENTRY_INFORMATION ThreadEntry[1];
 } PROCESS_THREAD_INFORMATION, *PPROCESS_THREAD_INFORMATION;
 
 
@@ -41,15 +41,15 @@ APGetProcessThreadInfo(IN PETHREAD EThread, IN PEPROCESS EProcess, OUT PPROCESS_
 
 VOID
 APEnumProcessThreadByIterateFirstLevelHandleTable(IN UINT_PTR TableCode, IN PEPROCESS EProcess,
-	OUT PPROCESS_THREAD_INFORMATION pti, IN UINT32 ThreadCount);
+    OUT PPROCESS_THREAD_INFORMATION pti, IN UINT32 ThreadCount);
 
 VOID
 APEnumProcessThreadByIterateSecondLevelHandleTable(IN UINT_PTR TableCode, IN PEPROCESS EProcess,
-	OUT PPROCESS_THREAD_INFORMATION pti, IN UINT32 ThreadCount);
+    OUT PPROCESS_THREAD_INFORMATION pti, IN UINT32 ThreadCount);
 
 VOID
 APEnumProcessThreadByIterateThirdLevelHandleTable(IN UINT_PTR TableCode, IN PEPROCESS EProcess,
-	OUT PPROCESS_THREAD_INFORMATION pti, IN UINT32 ThreadCount);
+    OUT PPROCESS_THREAD_INFORMATION pti, IN UINT32 ThreadCount);
 
 NTSTATUS
 APEnumProcessThreadByIteratePspCidTable(IN PEPROCESS EProcess, OUT PPROCESS_THREAD_INFORMATION pti, IN UINT32 ThreadCount);

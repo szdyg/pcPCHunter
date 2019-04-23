@@ -14,19 +14,19 @@
 
 typedef struct _PROCESS_ENTRY_INFORMATION
 {
-	WCHAR     wzImageName[100];
-	UINT32	  ProcessId;
-	UINT32	  ParentProcessId;
-	WCHAR     wzFilePath[MAX_PATH];
-	UINT_PTR  EProcess;
-	BOOL      bUserAccess;
-	WCHAR     wzCompanyName[MAX_PATH];
+    WCHAR     wzImageName[100];
+    UINT32      ProcessId;
+    UINT32      ParentProcessId;
+    WCHAR     wzFilePath[MAX_PATH];
+    UINT_PTR  EProcess;
+    BOOL      bUserAccess;
+    WCHAR     wzCompanyName[MAX_PATH];
 } PROCESS_ENTRY_INFORMATION, *PPROCESS_ENTRY_INFORMATION;
 
 typedef struct _PROCESS_INFORMATION
 {
-	UINT32                    NumberOfProcesses;
-	PROCESS_ENTRY_INFORMATION ProcessEntry[1];
+    UINT32                    NumberOfProcesses;
+    PROCESS_ENTRY_INFORMATION ProcessEntry[1];
 } PROCESS_INFORMATION, *PPROCESS_INFORMATION;
 
 UINT_PTR

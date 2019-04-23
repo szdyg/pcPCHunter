@@ -7,16 +7,16 @@
 
 typedef struct _DPC_TIMER_ENTRY_INFORMATION
 {
-	UINT_PTR TimerObject;
-	UINT_PTR RealDpc;
-	UINT_PTR Cycle;       // 周期
-	UINT_PTR TimeDispatch;
+    UINT_PTR TimerObject;
+    UINT_PTR RealDpc;
+    UINT_PTR Cycle;       // 周期
+    UINT_PTR TimeDispatch;
 } DPC_TIMER_ENTRY_INFORMATION, *PDPC_TIMER_ENTRY_INFORMATION;
 
 typedef struct _DPC_TIMER_INFORMATION
 {
-	UINT32                      NumberOfDpcTimers;
-	DPC_TIMER_ENTRY_INFORMATION DpcTimerEntry[1];
+    UINT32                      NumberOfDpcTimers;
+    DPC_TIMER_ENTRY_INFORMATION DpcTimerEntry[1];
 } DPC_TIMER_INFORMATION, *PDPC_TIMER_INFORMATION;
 
 

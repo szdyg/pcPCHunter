@@ -8,17 +8,17 @@
 
 typedef struct _PROCESS_MEMORY_ENTRY_INFORMATION
 {
-	UINT_PTR	BaseAddress;
-	UINT_PTR	RegionSize;
-	UINT32		Protect;
-	UINT32		State;
-	UINT32		Type;
+    UINT_PTR    BaseAddress;
+    UINT_PTR    RegionSize;
+    UINT32        Protect;
+    UINT32        State;
+    UINT32        Type;
 } PROCESS_MEMORY_ENTRY_INFORMATION, *PPROCESS_MEMORY_ENTRY_INFORMATION;
 
 typedef struct _PROCESS_MEMORY_INFORMATION
 {
-	UINT32								NumberOfMemories;
-	PROCESS_MEMORY_ENTRY_INFORMATION	MemoryEntry[1];
+    UINT32                                NumberOfMemories;
+    PROCESS_MEMORY_ENTRY_INFORMATION    MemoryEntry[1];
 }PROCESS_MEMORY_INFORMATION, *PPROCESS_MEMORY_INFORMATION;
 
 

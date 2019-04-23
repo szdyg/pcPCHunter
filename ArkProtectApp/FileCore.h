@@ -3,23 +3,23 @@
 
 namespace ArkProtect
 {
-	class CFileCore
-	{
-	public:
-		CFileCore(class CGlobal *GlobalObject);
-		~CFileCore();
+    class CFileCore
+    {
+    public:
+        CFileCore(class CGlobal *GlobalObject);
+        ~CFileCore();
 
-		BOOL DeleteFile(CString strFilePath);
+        BOOL DeleteFile(CString strFilePath);
 
-		static DWORD CALLBACK DeleteFileCallback(LPARAM lParam);
-
-
-	private:
+        static DWORD CALLBACK DeleteFileCallback(LPARAM lParam);
 
 
-		class CGlobal       *m_Global;
-		static CFileCore    *m_File;
+    private:
 
-	};
+
+        class CGlobal       *m_Global;
+        static CFileCore    *m_File;
+
+    };
 }
 

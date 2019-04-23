@@ -8,18 +8,18 @@
 
 typedef struct _PROCESS_WINDOW_ENTRY_INFORMATION
 {
-	HWND   hWnd;
-	WCHAR  wzWindowText;
-	WCHAR  wzWindowClass;
-	BOOL   bVisibal;
-	UINT32 ProcessId;
-	UINT32 ThreadId;
+    HWND   hWnd;
+    WCHAR  wzWindowText;
+    WCHAR  wzWindowClass;
+    BOOL   bVisibal;
+    UINT32 ProcessId;
+    UINT32 ThreadId;
 } PROCESS_WINDOW_ENTRY_INFORMATION, *PPROCESS_WINDOW_ENTRY_INFORMATION;
 
 typedef struct _PROCESS_WINDOW_INFORMATION
 {
-	UINT32                            NumberOfWindows;
-	PROCESS_WINDOW_ENTRY_INFORMATION  WindowEntry[1];
+    UINT32                            NumberOfWindows;
+    PROCESS_WINDOW_ENTRY_INFORMATION  WindowEntry[1];
 } PROCESS_WINDOW_INFORMATION, *PPROCESS_WINDOW_INFORMATION;
 
 

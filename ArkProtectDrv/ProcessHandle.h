@@ -10,17 +10,17 @@
 
 typedef struct _PROCESS_HANDLE_ENTRY_INFORMATION
 {
-	HANDLE		Handle;
-	PVOID		Object;
-	UINT32		ReferenceCount;		    // 引用计数
-	WCHAR		wzHandleType[MAX_PATH];
-	WCHAR		wzHandleName[MAX_PATH];
+    HANDLE        Handle;
+    PVOID        Object;
+    UINT32        ReferenceCount;            // 引用计数
+    WCHAR        wzHandleType[MAX_PATH];
+    WCHAR        wzHandleName[MAX_PATH];
 } PROCESS_HANDLE_ENTRY_INFORMATION, *PPROCESS_HANDLE_ENTRY_INFORMATION;
 
 typedef struct _PROCESS_HANDLE_INFORMATION
 {
-	UINT32								NumberOfHandles;
-	PROCESS_HANDLE_ENTRY_INFORMATION	HandleEntry[1];
+    UINT32                                NumberOfHandles;
+    PROCESS_HANDLE_ENTRY_INFORMATION    HandleEntry[1];
 } PROCESS_HANDLE_INFORMATION, *PPROCESS_HANDLE_INFORMATION;
 
 

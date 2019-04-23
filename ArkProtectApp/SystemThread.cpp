@@ -5,15 +5,15 @@
 namespace ArkProtect
 {
 
-	CSystemThread::CSystemThread(CGlobal *GlobalObject)
-		: m_Global(GlobalObject)
-	{
+    CSystemThread::CSystemThread(CGlobal *GlobalObject)
+        : m_Global(GlobalObject)
+    {
 
-	}
+    }
 
 
-	CSystemThread::~CSystemThread()
-	{
-	}
+    CSystemThread::~CSystemThread()
+    {
+    }
 
 }

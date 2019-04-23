@@ -7,61 +7,61 @@
 
 class CProcessInfoDlg : public CDialogEx
 {
-	DECLARE_DYNAMIC(CProcessInfoDlg)
+    DECLARE_DYNAMIC(CProcessInfoDlg)
 
 public:
-	CProcessInfoDlg(CWnd* pParent, ArkProtect::eProcessInfoKind ProcessInfoKind,
-		ArkProtect::CGlobal *GlobalObject);   // 标准构造函数
-	virtual ~CProcessInfoDlg();
+    CProcessInfoDlg(CWnd* pParent, ArkProtect::eProcessInfoKind ProcessInfoKind,
+        ArkProtect::CGlobal *GlobalObject);   // 标准构造函数
+    virtual ~CProcessInfoDlg();
 
 // 对话框数据
 #ifdef AFX_DESIGN_TIME
-	enum { IDD = IDD_PROCESS_INFO_DIALOG };
+    enum { IDD = IDD_PROCESS_INFO_DIALOG };
 #endif
 
 protected:
-	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV 支持
-	virtual BOOL OnInitDialog();
-	afx_msg void OnSize(UINT nType, int cx, int cy);
+    virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV 支持
+    virtual BOOL OnInitDialog();
+    afx_msg void OnSize(UINT nType, int cx, int cy);
 
-	
+    
 
-	DECLARE_MESSAGE_MAP()
+    DECLARE_MESSAGE_MAP()
 public:
-	
-	void APInitializeProcessInfoList();
+    
+    void APInitializeProcessInfoList();
 
-	void APInitializeProcessModuleList();
+    void APInitializeProcessModuleList();
 
-	void APLoadProcessModuleList();
+    void APLoadProcessModuleList();
 
-	void APInitializeProcessThreadList();
+    void APInitializeProcessThreadList();
 
-	void APLoadProcessThreadList();
+    void APLoadProcessThreadList();
 
-	void APInitializeProcessHandleList();
+    void APInitializeProcessHandleList();
 
-	void APLoadProcessHandleList();
+    void APLoadProcessHandleList();
 
-	void APInitializeProcessWindowList();
+    void APInitializeProcessWindowList();
 
-	void APLoadProcessWindowList();
+    void APLoadProcessWindowList();
 
-	void APInitializeProcessMemoryList();
+    void APInitializeProcessMemoryList();
 
-	void APLoadProcessMemoryList();
+    void APLoadProcessMemoryList();
 
-	void APUpdateWindowText(LPCWSTR Num);
+    void APUpdateWindowText(LPCWSTR Num);
 
 
 
-	CListCtrl m_ProcessInfoListCtrl;
-	HICON     m_hIcon;
+    CListCtrl m_ProcessInfoListCtrl;
+    HICON     m_hIcon;
 
-	UINT32    m_ProcessId = 0;
+    UINT32    m_ProcessId = 0;
 
-	ArkProtect::CGlobal                     *m_Global;
-	ArkProtect::eProcessInfoKind            m_WantedInfoKind;
-	ArkProtect::eProcessInfoKind            m_CurrentInfoKind = (ArkProtect::eProcessInfoKind)(-1);
+    ArkProtect::CGlobal                     *m_Global;
+    ArkProtect::eProcessInfoKind            m_WantedInfoKind;
+    ArkProtect::eProcessInfoKind            m_CurrentInfoKind = (ArkProtect::eProcessInfoKind)(-1);
 
 };

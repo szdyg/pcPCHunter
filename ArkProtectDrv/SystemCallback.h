@@ -22,38 +22,38 @@
 
 typedef enum _eCallbackType
 {
-	ct_NotifyCreateProcess,
-	ct_NotifyCreateThread,
-	ct_NotifyLoadImage,
-	ct_NotifyCmpCallBack,
-	ct_NotifyKeBugCheckReason,
-	ct_NotifyKeBugCheck,
-	ct_NotifyShutdown,
-	ct_NotifyLastChanceShutdown
+    ct_NotifyCreateProcess,
+    ct_NotifyCreateThread,
+    ct_NotifyLoadImage,
+    ct_NotifyCmpCallBack,
+    ct_NotifyKeBugCheckReason,
+    ct_NotifyKeBugCheck,
+    ct_NotifyShutdown,
+    ct_NotifyLastChanceShutdown
 } eCallbackType;
 
 typedef struct _SYS_CALLBACK_ENTRY_INFORMATION
 {
-	eCallbackType Type;
-	UINT_PTR      CallbackAddress;
-	UINT_PTR      Description;
+    eCallbackType Type;
+    UINT_PTR      CallbackAddress;
+    UINT_PTR      Description;
 } SYS_CALLBACK_ENTRY_INFORMATION, *PSYS_CALLBACK_ENTRY_INFORMATION;
 
 typedef struct _SYS_CALLBACK_INFORMATION
 {
-	UINT_PTR                       NumberOfCallbacks;
-	SYS_CALLBACK_ENTRY_INFORMATION CallbackEntry[1];
+    UINT_PTR                       NumberOfCallbacks;
+    SYS_CALLBACK_ENTRY_INFORMATION CallbackEntry[1];
 } SYS_CALLBACK_INFORMATION, *PSYS_CALLBACK_INFORMATION;
 
 
 typedef struct _CM_NOTIFY_ENTRY
 {
-	LIST_ENTRY		ListEntryHead;
-	UINT32			UnKnown1;
-	UINT32			UnKnown2;
-	LARGE_INTEGER	Cookie;
-	UINT64			Context;
-	UINT64			Function;
+    LIST_ENTRY        ListEntryHead;
+    UINT32            UnKnown1;
+    UINT32            UnKnown2;
+    LARGE_INTEGER    Cookie;
+    UINT64            Context;
+    UINT64            Function;
 } CM_NOTIFY_ENTRY, *PCM_NOTIFY_ENTRY;
 
 
