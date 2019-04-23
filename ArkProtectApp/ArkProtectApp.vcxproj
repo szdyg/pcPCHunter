@@ -21,7 +21,7 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{C56406D2-8FB7-45D8-88C4-14F11B472C4E}</ProjectGuid>
     <RootNamespace>ArkProtectApp</RootNamespace>
-    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
     <Keyword>MFCProj</Keyword>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -50,10 +50,11 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v120</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
     <UseOfMfc>Static</UseOfMfc>
+    <SpectreMitigation>false</SpectreMitigation>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -196,6 +197,7 @@
     <ClInclude Include="FilterDriver.h" />
     <ClInclude Include="HookDlg.h" />
     <ClInclude Include="IoTimer.h" />
+    <ClInclude Include="log.h" />
     <ClInclude Include="NtStructs.h" />
     <ClInclude Include="SsdtHook.h" />
     <ClInclude Include="SssdtHook.h" />
@@ -228,6 +230,7 @@
     <ClCompile Include="FilterDriver.cpp" />
     <ClCompile Include="HookDlg.cpp" />
     <ClCompile Include="IoTimer.cpp" />
+    <ClCompile Include="log.cpp" />
     <ClCompile Include="SsdtHook.cpp" />
     <ClCompile Include="SssdtHook.cpp" />
     <ClCompile Include="SystemCallback.cpp" />
