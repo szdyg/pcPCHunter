@@ -2,40 +2,31 @@
 #include "ZwQueryVirtualMemory.h"
 #include "Common.h"
 
+extern COMMON_INFO g_CommonInfo;
 ULONG_PTR   IndexOffset = 0;
-extern WIN_VERSION WinVersion;
 
-ULONG_PTR  GetFuncAddress(char* szFuncName)
+ULONG_PTR  GetFuncAddress(PCHAR szFuncName)
 {
     ULONG_PTR SSDTDescriptor = 0;
     ULONG_PTR ulIndex = 0;
     ULONG_PTR SSDTFuncAddress = 0;
+    g_CommonInfo.WinVersion = GetWindowsVersion();
 
-    WinVersion = GetWindowsVersion();
-
-    switch(WinVersion)
+    switch(g_CommonInfo.WinVersion)
     {
-#ifdef _WIN64
-    case WINDOWS_7_7601:
+        case WINDOWS_7_7601:
         {
             SSDTDescriptor = GetKeServiceDescriptorTable64();
             IndexOffset = 4;
             break;
         }
-#else
-    case WINDOWS_XP:
-        {
-            SSDTDescriptor = (ULONG_PTR)GetFunctionAddressByName(L"KeServiceDescriptorTable");
-            IndexOffset = 1;
-            break;
-        }
-#endif
-    default:
-        return 0;
+
+        default:
+            return 0;
     }
 
     ulIndex = GetSSDTApiFunIndex(szFuncName);
-    SSDTFuncAddress =  GetSSDTApiFunAddress(ulIndex,SSDTDescriptor);
+    SSDTFuncAddress = GetSSDTApiFunAddress(ulIndex, SSDTDescriptor);
     return SSDTFuncAddress;
 }
 
@@ -44,52 +35,36 @@ ULONG_PTR  GetFuncAddress(char* szFuncName)
 ULONG_PTR GetSSDTApiFunAddress(ULONG_PTR ulIndex,ULONG_PTR SSDTDescriptor)
 {
     ULONG_PTR  SSDTFuncAddress = 0;
-    switch(WinVersion)
+    switch(g_CommonInfo.WinVersion)
     {
-#ifdef _WIN64
-    case WINDOWS_7_7601:
+        case WINDOWS_7_7601:
         {
-            SSDTFuncAddress = GetSSDTFunctionAddress64(ulIndex,SSDTDescriptor);
-            break;
+            SSDTFuncAddress = GetSSDTFunctionAddress_7601(ulIndex, SSDTDescriptor);
         }
-#else
-    case WINDOWS_XP:
-        {
-            SSDTFuncAddress = GetSSDTFunctionAddress32(ulIndex,SSDTDescriptor);
+        break;
+        default: 
+            SSDTFuncAddress = 0;
             break;
-        }
-#endif
-    default: 
-        return 0;
     }
 
-    return 0;
-}
-
-
-ULONG_PTR GetSSDTFunctionAddress32(ULONG_PTR ulIndex,ULONG_PTR SSDTDescriptor)
-{
-    ULONG_PTR ServiceTableBase= 0 ;
-    PSYSTEM_SERVICE_TABLE32 SSDT = (PSYSTEM_SERVICE_TABLE32)SSDTDescriptor;
-
-    ServiceTableBase=(ULONG_PTR)(SSDT ->ServiceTableBase);
-
-    return (ULONG_PTR)(((ULONG*)ServiceTableBase)[(ULONG)ulIndex]);
+    return SSDTFuncAddress;
 }
 
 
 
-ULONG_PTR GetSSDTFunctionAddress64(ULONG_PTR ulIndex,ULONG_PTR SSDTDescriptor)
+
+
+ULONG_PTR GetSSDTFunctionAddress_7601(ULONG_PTR ulIndex,ULONG_PTR SSDTDescriptor)
 {
-    LONG dwTemp=0;
-    ULONG_PTR qwTemp=0;
-    ULONG_PTR ServiceTableBase= 0 ;
-    ULONG_PTR FuncAddress =0;
+    LONG dwTemp = 0;
+    ULONG_PTR qwTemp = 0;
+    ULONG_PTR ServiceTableBase = 0;
+    ULONG_PTR FuncAddress = 0;
     PSYSTEM_SERVICE_TABLE64 SSDT = (PSYSTEM_SERVICE_TABLE64)SSDTDescriptor;
-    ServiceTableBase=(ULONG_PTR)(SSDT ->ServiceTableBase);
+    ServiceTableBase = (ULONG_PTR)(SSDT->ServiceTableBase);
     qwTemp = ServiceTableBase + 4 * ulIndex;
     dwTemp = *(PLONG)qwTemp;
-    dwTemp = dwTemp>>4;
+    dwTemp = dwTemp >> 4;
     FuncAddress = ServiceTableBase + (ULONG_PTR)dwTemp;
     return FuncAddress;
 }
@@ -99,46 +74,49 @@ LONG GetSSDTApiFunIndex(IN LPSTR lpszFunName)
 {
     LONG Index = -1;
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
-    PVOID    MapBase = NULL;
+    PVOID    pMapBase = NULL;
     PIMAGE_NT_HEADERS  NtHeader;
     PIMAGE_EXPORT_DIRECTORY ExportTable;
-    ULONG*  FunctionAddresses;
-    ULONG*  FunctionNames;
-    USHORT* FunIndexs;
+    PULONG  FunctionAddresses;
+    PULONG  FunctionNames;
+    PUSHORT FunIndexs;
     ULONG   ulFunIndex;
-    ULONG   i;
-    CHAR*   FunName;
+    PCHAR   FunName;
     SIZE_T  ViewSize=0;
     ULONG_PTR FunAddress;
     WCHAR wzNtdll[] = L"\\SystemRoot\\System32\\ntdll.dll";
 
-    Status = MapFileInUserSpace(wzNtdll, NtCurrentProcess(), &MapBase, &ViewSize);
+    Status = MapFileInUserSpace(wzNtdll, NtCurrentProcess(), &pMapBase, &ViewSize);
     if (!NT_SUCCESS(Status))
     {
         return STATUS_UNSUCCESSFUL;
     }
     else
     {
-        __try{
-            NtHeader = RtlImageNtHeader(MapBase);
-            if (NtHeader && NtHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress){
-                ExportTable =(IMAGE_EXPORT_DIRECTORY *)((ULONG_PTR)MapBase + NtHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress);
-                FunctionAddresses = (ULONG*)((ULONG_PTR)MapBase + ExportTable->AddressOfFunctions);
-                FunctionNames = (ULONG*)((ULONG_PTR)MapBase + ExportTable->AddressOfNames);
-                FunIndexs = (USHORT*)((ULONG_PTR)MapBase + ExportTable->AddressOfNameOrdinals);
-                for(i = 0; i < ExportTable->NumberOfNames; i++)
+
+        __try
+        {
+            NtHeader = RtlImageNtHeader(pMapBase);
+            if (NtHeader && NtHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress) 
+            {
+                ExportTable = (IMAGE_EXPORT_DIRECTORY *)((ULONG_PTR)pMapBase + NtHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress);
+                FunctionAddresses = (ULONG*)((ULONG_PTR)pMapBase + ExportTable->AddressOfFunctions);
+                FunctionNames = (ULONG*)((ULONG_PTR)pMapBase + ExportTable->AddressOfNames);
+                FunIndexs = (USHORT*)((ULONG_PTR)pMapBase + ExportTable->AddressOfNameOrdinals);
+                for (ULONG uIndex = 0; uIndex < ExportTable->NumberOfNames; uIndex++)
                 {
-                    FunName = (LPSTR)((ULONG_PTR)MapBase + FunctionNames[i]);
-                    if (_stricmp(FunName, lpszFunName) == 0) 
+                    FunName = (LPSTR)((ULONG_PTR)pMapBase + FunctionNames[uIndex]);
+                    if (_stricmp(FunName, lpszFunName) == 0)
                     {
-                        ulFunIndex = FunIndexs[i]; 
-                        FunAddress = (ULONG_PTR)((ULONG_PTR)MapBase + FunctionAddresses[ulFunIndex]);
-                        Index=*(ULONG*)(FunAddress+IndexOffset);
+                        ulFunIndex = FunIndexs[uIndex];
+                        FunAddress = (ULONG_PTR)((ULONG_PTR)pMapBase + FunctionAddresses[ulFunIndex]);
+                        Index = *(ULONG*)(FunAddress + IndexOffset);
                         break;
                     }
                 }
             }
-        }__except(EXCEPTION_EXECUTE_HANDLER)
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER)
         {
         }
     }
@@ -148,7 +126,7 @@ LONG GetSSDTApiFunIndex(IN LPSTR lpszFunName)
         DbgPrint("%s Get Index Error\n", lpszFunName);
     }
 
-    ZwUnmapViewOfSection(NtCurrentProcess(), MapBase);
+    ZwUnmapViewOfSection(NtCurrentProcess(), pMapBase);
     return Index;
 }
 
@@ -160,19 +138,15 @@ ULONG_PTR GetKeServiceDescriptorTable64()
     PUCHAR StartSearchAddress = (PUCHAR)__readmsr(0xC0000082);
     PUCHAR EndSearchAddress = StartSearchAddress + 0x500;
     PUCHAR i = NULL;
-    UCHAR b1=0,b2=0,b3=0;
     ULONG_PTR Temp = 0;
     ULONG_PTR Address = 0;
-    for(i=StartSearchAddress;i<EndSearchAddress;i++)
+    for (i = StartSearchAddress; i < EndSearchAddress; i++)
     {
-        if( MmIsAddressValid(i) && MmIsAddressValid(i+1) && MmIsAddressValid(i+2) )
+        if (MmIsAddressValid(i) && MmIsAddressValid(i + 1) && MmIsAddressValid(i + 2))
         {
-            b1=*i;
-            b2=*(i+1);
-            b3=*(i+2);
-            if( b1==0x4c && b2==0x8d && b3==0x15 ) //4c8d15
+            if (*i == 0x4c && *(i + 1) == 0x8d && *(i + 2) == 0x15) //4c8d15
             {
-                memcpy(&Temp,i+3,4);
+                memcpy(&Temp, i + 3, 4);
                 Address = (ULONG_PTR)Temp + (ULONG_PTR)i + 7;
                 return Address;
             }
@@ -184,12 +158,9 @@ ULONG_PTR GetKeServiceDescriptorTable64()
 
 
 
-NTSTATUS 
-    MapFileInUserSpace(IN LPWSTR lpszFileName,IN HANDLE ProcessHandle OPTIONAL,
-    OUT PVOID *BaseAddress,
-    OUT PSIZE_T ViewSize OPTIONAL)
+NTSTATUS MapFileInUserSpace(IN LPWSTR lpszFileName, IN HANDLE ProcessHandle OPTIONAL, OUT PVOID *ppBaseAddress, OUT PSIZE_T ViewSize OPTIONAL)
 {
-    NTSTATUS Status = STATUS_INVALID_PARAMETER;
+    NTSTATUS Status = STATUS_SUCCESS;
     HANDLE   hFile = NULL;
     HANDLE   hSection = NULL;
     OBJECT_ATTRIBUTES oa;
@@ -197,76 +168,77 @@ NTSTATUS
     IO_STATUS_BLOCK Iosb;
     UNICODE_STRING uniFileName;
 
-    if (!lpszFileName || !BaseAddress){
-        return Status;
-    }
-
-    RtlInitUnicodeString(&uniFileName, lpszFileName);
-    InitializeObjectAttributes(&oa,
-        &uniFileName,
-        OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE,
-        NULL,
-        NULL
-        );
-
-    Status = IoCreateFile(&hFile,
-        GENERIC_READ | SYNCHRONIZE,
-        &oa,
-        &Iosb,
-        NULL,
-        FILE_ATTRIBUTE_NORMAL,
-        FILE_SHARE_READ,
-        FILE_OPEN,
-        FILE_SYNCHRONOUS_IO_NONALERT,
-        NULL,
-        0,
-        CreateFileTypeNone,
-        NULL,
-        IO_NO_PARAMETER_CHECKING
-        );
-
-    if (!NT_SUCCESS(Status))
+    do 
     {
-        DbgPrint("ZwCreateFile Failed! Error=%08x\n",Status);
-        return Status;
-    }
+        if (NULL==lpszFileName||NULL==ppBaseAddress)
+        {
+            Status = STATUS_INVALID_PARAMETER;
+            break;
+        }
+        RtlInitUnicodeString(&uniFileName, lpszFileName);
+        InitializeObjectAttributes(&oa, &uniFileName, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
+        Status = IoCreateFile(
+            &hFile,
+            GENERIC_READ | SYNCHRONIZE,
+            &oa,
+            &Iosb,
+            NULL,
+            FILE_ATTRIBUTE_NORMAL,
+            FILE_SHARE_READ,
+            FILE_OPEN,
+            FILE_SYNCHRONOUS_IO_NONALERT,
+            NULL,
+            0,
+            CreateFileTypeNone,
+            NULL,
+            IO_NO_PARAMETER_CHECKING);
 
-    oa.ObjectName = NULL;
-    Status = ZwCreateSection(&hSection,
-        SECTION_QUERY | SECTION_MAP_READ,
-        &oa,
-        NULL,
-        PAGE_WRITECOPY,
-        SEC_IMAGE,
-        hFile
-        );
-    ZwClose(hFile);
-    if (!NT_SUCCESS(Status))
+        if (!NT_SUCCESS(Status))
+        {
+            break;
+        }
+
+        oa.ObjectName = NULL;
+        Status = ZwCreateSection(
+            &hSection,
+            SECTION_QUERY | SECTION_MAP_READ,
+            &oa,
+            NULL,
+            PAGE_WRITECOPY,
+            SEC_IMAGE,
+            hFile);
+        if (!NT_SUCCESS(Status))
+        {
+            break;
+        }
+
+        if (NULL != ProcessHandle)
+        {
+            ProcessHandle = NtCurrentProcess();
+        }
+        Status = ZwMapViewOfSection(
+            hSection,
+            ProcessHandle,
+            ppBaseAddress,
+            0,
+            0,
+            0,
+            ViewSize != NULL ? ViewSize : &MapViewSize,
+            ViewUnmap,
+            0,
+            PAGE_WRITECOPY);
+
+    } while (FALSE);
+
+    if (hFile != NULL)
     {
-        DbgPrint("ZwCreateSection Failed! Error=%08x\n",Status);
-        return Status;
+        ZwClose(hFile);
+        hFile = NULL;
     }
-
-    if (!ProcessHandle){
-        ProcessHandle = NtCurrentProcess();
-    }
-
-    Status = ZwMapViewOfSection(hSection, 
-        ProcessHandle, 
-        BaseAddress, 
-        0, 
-        0, 
-        0, 
-        ViewSize ? ViewSize : &MapViewSize, 
-        ViewUnmap, 
-        0, 
-        PAGE_WRITECOPY
-        );
-    ZwClose(hSection);
-    if (!NT_SUCCESS(Status))
+    if (hSection != NULL)
     {
-        DbgPrint("ZwMapViewOfSection Failed! Error=%08x\n",Status);
-        return Status;
+        ZwClose(hSection);
+        hSection = NULL;
     }
 
     return Status;

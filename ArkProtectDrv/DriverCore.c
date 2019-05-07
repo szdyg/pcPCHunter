@@ -3,32 +3,24 @@
 
 extern GOLBAL_INFO g_DriverInfo;
 
-POBJECT_TYPE    g_DirectoryObjectType = NULL;  // 目录对象类型地址
+POBJECT_TYPE g_DirectoryObjectType = NULL;  // 目录对象类型地址
 
 
-/************************************************************************
-*  Name : APEnumDriverModuleByLdrDataTableEntry
-*  Param: wzDriverName          DriverName
-*  Param: PsLoadedModuleList    内核模块加载List
-*  Ret  : NTSTATUS
-*  通过遍历Ldr枚举内核模块 按加载顺序来
-************************************************************************/
-PLDR_DATA_TABLE_ENTRY
-APGetDriverModuleLdr(IN const WCHAR* wzDriverName, IN PLDR_DATA_TABLE_ENTRY PsLoadedModuleList)
+
+PLDR_DATA_TABLE_ENTRY APGetDriverModuleLdr(IN const PWCHAR wzDriverName, IN PLDR_DATA_TABLE_ENTRY PsLoadedModuleList)
 {
     BOOLEAN   bFind = FALSE;
     PLDR_DATA_TABLE_ENTRY TravelEntry = NULL;
-
+    KIRQL OldIrql;
     if (wzDriverName && PsLoadedModuleList)
     {
-        KIRQL OldIrql = KeRaiseIrqlToDpcLevel();  // 提高中断请求级别到dpc级别
-
+        OldIrql = KeRaiseIrqlToDpcLevel();  // 提高中断请求级别到dpc级别
         __try
         {
             UINT32 MaxSize = PAGE_SIZE;
 
             for (TravelEntry = (PLDR_DATA_TABLE_ENTRY)PsLoadedModuleList->InLoadOrderLinks.Flink;  // Ntkrnl
-                TravelEntry && TravelEntry != PsLoadedModuleList && MaxSize--;
+                TravelEntry && (TravelEntry != PsLoadedModuleList) && MaxSize--;
                 TravelEntry = (PLDR_DATA_TABLE_ENTRY)TravelEntry->InLoadOrderLinks.Flink)
             {
                 if ((UINT_PTR)TravelEntry->DllBase > g_DriverInfo.DynamicData.MinKernelSpaceAddress && TravelEntry->SizeOfImage > 0)
@@ -60,94 +52,70 @@ APGetDriverModuleLdr(IN const WCHAR* wzDriverName, IN PLDR_DATA_TABLE_ENTRY PsLo
 }
 
 
-/************************************************************************
-*  Name : APEnumDriverModuleByLdrDataTableEntry
-*  Param: PsLoadedModuleList   内核模块加载List
-*  Param: di                   Ring3Buffer
-*  Param: DriverCount
-*  Ret  : NTSTATUS
-*  通过遍历Ldr枚举内核模块 按加载顺序来
-************************************************************************/
-NTSTATUS
-APEnumDriverModuleByLdrDataTableEntry(IN PLDR_DATA_TABLE_ENTRY PsLoadedModuleList, OUT PDRIVER_INFORMATION di, IN UINT32 DriverCount)
+NTSTATUS APEnumDriverModuleByLdrDataTableEntry(IN PLDR_DATA_TABLE_ENTRY PsLoadedModuleList, OUT PDRIVER_INFORMATION di, IN UINT32 DriverCount)
 {
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
-
-    if (di && PsLoadedModuleList)
+    UINT32 MaxSize = PAGE_SIZE;
+    INT32  i = 0;
+    KIRQL OldIrql;
+    PLDR_DATA_TABLE_ENTRY TravelEntry;
+    do
     {
-        KIRQL OldIrql = KeRaiseIrqlToDpcLevel();  // 提高中断请求级别到dpc级别
-
-        __try
+        if (NULL == di || NULL == PsLoadedModuleList)
         {
-            UINT32 MaxSize = PAGE_SIZE;
-            INT32  i = 0;
-            PLDR_DATA_TABLE_ENTRY TravelEntry;
-            for (  TravelEntry = (PLDR_DATA_TABLE_ENTRY)PsLoadedModuleList->InLoadOrderLinks.Flink;  // Ntkrnl
-                TravelEntry && TravelEntry != PsLoadedModuleList && MaxSize--;
-                TravelEntry = (PLDR_DATA_TABLE_ENTRY)TravelEntry->InLoadOrderLinks.Flink)
+            Status = STATUS_INVALID_PARAMETER;
+            break;
+        }
+        OldIrql = KeRaiseIrqlToDpcLevel();  // 提高中断请求级别到dpc级别
+        for (TravelEntry = (PLDR_DATA_TABLE_ENTRY)PsLoadedModuleList->InLoadOrderLinks.Flink;  // Ntkrnl
+            TravelEntry && (TravelEntry != PsLoadedModuleList) && MaxSize--;
+            TravelEntry = (PLDR_DATA_TABLE_ENTRY)TravelEntry->InLoadOrderLinks.Flink)
+        {
+            if ((UINT_PTR)TravelEntry->DllBase > g_DriverInfo.DynamicData.MinKernelSpaceAddress && TravelEntry->SizeOfImage > 0)
             {
-                if ((UINT_PTR)TravelEntry->DllBase > g_DriverInfo.DynamicData.MinKernelSpaceAddress && TravelEntry->SizeOfImage > 0)
+                if (DriverCount > di->NumberOfDrivers)
                 {
-                    if (DriverCount > di->NumberOfDrivers)
+                    di->DriverEntry[di->NumberOfDrivers].BaseAddress = (UINT_PTR)TravelEntry->DllBase;
+                    di->DriverEntry[di->NumberOfDrivers].Size = TravelEntry->SizeOfImage;
+                    di->DriverEntry[di->NumberOfDrivers].LoadOrder = ++i;
+
+                    if (APIsUnicodeStringValid(&(TravelEntry->FullDllName)))
                     {
-                        di->DriverEntry[di->NumberOfDrivers].BaseAddress = (UINT_PTR)TravelEntry->DllBase;
-                        di->DriverEntry[di->NumberOfDrivers].Size = TravelEntry->SizeOfImage;
-                        di->DriverEntry[di->NumberOfDrivers].LoadOrder = ++i;
-
-                        if (APIsUnicodeStringValid(&(TravelEntry->FullDllName)))
-                        {
-                            RtlStringCchCopyW(di->DriverEntry[di->NumberOfDrivers].wzDriverPath, TravelEntry->FullDllName.Length / sizeof(WCHAR) + 1, (WCHAR*)TravelEntry->FullDllName.Buffer);
-                        }
-                        else if (APIsUnicodeStringValid(&(TravelEntry->BaseDllName)))
-                        {
-                            RtlStringCchCopyW(di->DriverEntry[di->NumberOfDrivers].wzDriverPath, TravelEntry->BaseDllName.Length / sizeof(WCHAR) + 1, (WCHAR*)TravelEntry->BaseDllName.Buffer);
-                        }
+                        RtlStringCchCopyW(di->DriverEntry[di->NumberOfDrivers].wzDriverPath, TravelEntry->FullDllName.Length / sizeof(WCHAR) + 1, (WCHAR*)TravelEntry->FullDllName.Buffer);
                     }
-                    di->NumberOfDrivers++;
+                    else if (APIsUnicodeStringValid(&(TravelEntry->BaseDllName)))
+                    {
+                        RtlStringCchCopyW(di->DriverEntry[di->NumberOfDrivers].wzDriverPath, TravelEntry->BaseDllName.Length / sizeof(WCHAR) + 1, (WCHAR*)TravelEntry->BaseDllName.Buffer);
+                    }
                 }
+                di->NumberOfDrivers++;
             }
-            if (di->NumberOfDrivers)
-            {
-                Status = STATUS_SUCCESS;
-            }
-
         }
-        __except (EXCEPTION_EXECUTE_HANDLER)
+        if (di->NumberOfDrivers)
         {
-            DbgPrint("Catch Exception\r\n");
-            Status = STATUS_UNSUCCESSFUL;
+            Status = STATUS_SUCCESS;
         }
-
         KeLowerIrql(OldIrql);
-    }
+    } while (FALSE);
 
     return Status;
 }
 
 
-/************************************************************************
-*  Name : APIsDriverInList
-*  Param: di
-*  Param: DriverObject         驱动对象
-*  Param: DriverCount
-*  Ret  : VOID
-*  查看传入的对象是否已经存在结构体中，如果在 则继续完善信息，如果不在，则返回false，留给母程序处理
-************************************************************************/
-BOOLEAN
-APIsDriverInList(IN PDRIVER_INFORMATION di, IN PDRIVER_OBJECT DriverObject, IN UINT32 DriverCount)
+
+BOOLEAN APIsDriverInList(IN PDRIVER_INFORMATION di, IN PDRIVER_OBJECT DriverObject, IN UINT32 DriverCount)
 {
     BOOLEAN bOk = TRUE, bFind = FALSE;
 
-    if (!di || !DriverObject || !MmIsAddressValid(DriverObject))
+    if (NULL == di || NULL == DriverObject || !MmIsAddressValid(DriverObject))
     {
-        return bOk;
+        return TRUE;
     }
-
     __try
     {
         PLDR_DATA_TABLE_ENTRY LdrDataTableEntry = (PLDR_DATA_TABLE_ENTRY)DriverObject->DriverSection;
 
-        if (LdrDataTableEntry &&
+        if (NULL != LdrDataTableEntry &&
             MmIsAddressValid(LdrDataTableEntry) &&
             MmIsAddressValid((PVOID)LdrDataTableEntry->DllBase) &&
             (UINT_PTR)LdrDataTableEntry->DllBase > g_DriverInfo.DynamicData.MinKernelSpaceAddress)
@@ -167,8 +135,7 @@ APIsDriverInList(IN PDRIVER_INFORMATION di, IN PDRIVER_OBJECT DriverObject, IN U
                         di->DriverEntry[i].DirverStartAddress = (UINT_PTR)LdrDataTableEntry->EntryPoint;
 
                         // 获得服务名
-                        RtlStringCchCopyW(di->DriverEntry[i].wzServiceName, DriverObject->DriverExtension->ServiceKeyName.Length / sizeof(WCHAR) + 1,
-                            DriverObject->DriverExtension->ServiceKeyName.Buffer);
+                        RtlStringCchCopyW(di->DriverEntry[i].wzServiceName, DriverObject->DriverExtension->ServiceKeyName.Length / sizeof(WCHAR) + 1,DriverObject->DriverExtension->ServiceKeyName.Buffer);
                     }
 
                     bFind = TRUE;
@@ -191,68 +158,64 @@ APIsDriverInList(IN PDRIVER_INFORMATION di, IN PDRIVER_OBJECT DriverObject, IN U
 }
 
 
-/************************************************************************
-*  Name : APGetDriverInfo
-*  Param: di
-*  Param: DriverObject         驱动对象
-*  Param: DriverCount
-*  Ret  : VOID
-*  插入驱动对象信息
-************************************************************************/
-VOID
-APGetDriverInfo(OUT PDRIVER_INFORMATION di, IN PDRIVER_OBJECT DriverObject, IN UINT32 DriverCount)
+
+VOID APGetDriverInfo(OUT PDRIVER_INFORMATION di, IN PDRIVER_OBJECT DriverObject, IN UINT32 DriverCount)
 {
-    if (!di || !DriverObject || !MmIsAddressValid(DriverObject))
+    if (NULL == di || NULL == DriverObject || !MmIsAddressValid(DriverObject))
     {
         return;
     }
-    else
+
+    PLDR_DATA_TABLE_ENTRY LdrDataTableEntry = (PLDR_DATA_TABLE_ENTRY)DriverObject->DriverSection;
+
+    if (LdrDataTableEntry &&
+        MmIsAddressValid(LdrDataTableEntry) &&
+        MmIsAddressValid((PVOID)LdrDataTableEntry->DllBase) &&
+        (UINT_PTR)LdrDataTableEntry->DllBase > g_DriverInfo.DynamicData.MinKernelSpaceAddress)
     {
-        PLDR_DATA_TABLE_ENTRY LdrDataTableEntry = (PLDR_DATA_TABLE_ENTRY)DriverObject->DriverSection;
-
-        if (LdrDataTableEntry &&
-            MmIsAddressValid(LdrDataTableEntry) &&
-            MmIsAddressValid((PVOID)LdrDataTableEntry->DllBase) &&
-            (UINT_PTR)LdrDataTableEntry->DllBase > g_DriverInfo.DynamicData.MinKernelSpaceAddress)
+        if (DriverCount > di->NumberOfDrivers)
         {
-            if (DriverCount > di->NumberOfDrivers)
-            {
-                di->DriverEntry[di->NumberOfDrivers].BaseAddress = (UINT_PTR)LdrDataTableEntry->DllBase;
-                di->DriverEntry[di->NumberOfDrivers].Size = LdrDataTableEntry->SizeOfImage;
-                di->DriverEntry[di->NumberOfDrivers].DriverObject = (UINT_PTR)DriverObject;
+            di->DriverEntry[di->NumberOfDrivers].BaseAddress = (UINT_PTR)LdrDataTableEntry->DllBase;
+            di->DriverEntry[di->NumberOfDrivers].Size = LdrDataTableEntry->SizeOfImage;
+            di->DriverEntry[di->NumberOfDrivers].DriverObject = (UINT_PTR)DriverObject;
 
-                if (APIsUnicodeStringValid(&(LdrDataTableEntry->FullDllName)))
-                {
-                    RtlStringCchCopyW(di->DriverEntry[di->NumberOfDrivers].wzDriverPath, LdrDataTableEntry->FullDllName.Length / sizeof(WCHAR) + 1, (WCHAR*)LdrDataTableEntry->FullDllName.Buffer);
-                }
-                else if (APIsUnicodeStringValid(&(LdrDataTableEntry->BaseDllName)))
-                {
-                    RtlStringCchCopyW(di->DriverEntry[di->NumberOfDrivers].wzDriverPath, LdrDataTableEntry->BaseDllName.Length / sizeof(WCHAR) + 1, (WCHAR*)LdrDataTableEntry->BaseDllName.Buffer);
-                }
+            if (APIsUnicodeStringValid(&(LdrDataTableEntry->FullDllName)))
+            {
+                RtlStringCchCopyW(di->DriverEntry[di->NumberOfDrivers].wzDriverPath, LdrDataTableEntry->FullDllName.Length / sizeof(WCHAR) + 1, (WCHAR*)LdrDataTableEntry->FullDllName.Buffer);
             }
-            di->NumberOfDrivers++;
+            else if (APIsUnicodeStringValid(&(LdrDataTableEntry->BaseDllName)))
+            {
+                RtlStringCchCopyW(di->DriverEntry[di->NumberOfDrivers].wzDriverPath, LdrDataTableEntry->BaseDllName.Length / sizeof(WCHAR) + 1, (WCHAR*)LdrDataTableEntry->BaseDllName.Buffer);
+            }
         }
+        di->NumberOfDrivers++;
     }
+
 }
 
 
-/************************************************************************
-*  Name : APIterateDirectoryObject
-*  Param: DirectoryObject         目录对象
-*  Param: di
-*  Param: DriverCount
-*  Ret  : VOID
-*  遍历哈希目录 --> 目录上每个链表 --> 1.目录 递归  2.驱动对象 插入  3.设备对象 遍历设备栈 插入驱动对象
-************************************************************************/
-VOID
-APIterateDirectoryObject(IN PVOID DirectoryObject, OUT PDRIVER_INFORMATION di, IN UINT32 DriverCount)
+//************************************
+// 函数名:   APIterateDirectoryObject
+// 权限：    public 
+// 返回值:   VOID
+// 参数：    IN PVOID DirectoryObject             目录对象
+// 参数：    OUT PDRIVER_INFORMATION di
+// 参数：    IN UINT32 DriverCount
+// 说明：    遍历哈希目录 --> 目录上每个链表 --> 1.目录 递归  
+//                                            2.驱动对象 插入  
+//                                            3.设备对象 遍历设备栈 插入驱动对象
+//************************************
+VOID APIterateDirectoryObject(IN PVOID DirectoryObject, OUT PDRIVER_INFORMATION di, IN UINT32 DriverCount)
 {
-    if (di    && DirectoryObject && MmIsAddressValid(DirectoryObject))
+    do 
     {
+        if (NULL==di||NULL==DirectoryObject||!MmIsAddressValid(DirectoryObject))
+        {
+            break;
+        }
         ULONG i = 0;
         POBJECT_DIRECTORY ObjectDirectory = (POBJECT_DIRECTORY)DirectoryObject;
         KIRQL OldIrql = KeRaiseIrqlToDpcLevel();    // 提高中断级别
-
         __try
         {
             // 哈希表
@@ -260,7 +223,7 @@ APIterateDirectoryObject(IN PVOID DirectoryObject, OUT PDRIVER_INFORMATION di, I
             {
                 POBJECT_DIRECTORY_ENTRY ObjectDirectoryEntry;
                 // 所以此处再次遍历链表结构
-                for (  ObjectDirectoryEntry = ObjectDirectory->HashBuckets[i];
+                for (ObjectDirectoryEntry = ObjectDirectory->HashBuckets[i];
                     (UINT_PTR)ObjectDirectoryEntry > g_DriverInfo.DynamicData.MinKernelSpaceAddress && MmIsAddressValid(ObjectDirectoryEntry);
                     ObjectDirectoryEntry = ObjectDirectoryEntry->ChainLink)
                 {
@@ -273,17 +236,14 @@ APIterateDirectoryObject(IN PVOID DirectoryObject, OUT PDRIVER_INFORMATION di, I
                         {
                             APIterateDirectoryObject(ObjectDirectoryEntry->Object, di, DriverCount);
                         }
-
                         // 如果是驱动对象
                         else if (ObjectType == *IoDriverObjectType)
                         {
                             PDEVICE_OBJECT DeviceObject = NULL;
-
                             if (!APIsDriverInList(di, (PDRIVER_OBJECT)ObjectDirectoryEntry->Object, DriverCount))
                             {
                                 APGetDriverInfo(di, (PDRIVER_OBJECT)ObjectDirectoryEntry->Object, DriverCount);
                             }
-
                             // 遍历设备栈(指向不同的驱动对象)(设备链指向同一驱动对象)
                             for (DeviceObject = ((PDRIVER_OBJECT)ObjectDirectoryEntry->Object)->DeviceObject;
                                 DeviceObject && MmIsAddressValid(DeviceObject);
@@ -295,17 +255,14 @@ APIterateDirectoryObject(IN PVOID DirectoryObject, OUT PDRIVER_INFORMATION di, I
                                 }
                             }
                         }
-
                         // 如果是设备对象
                         else if (ObjectType == *IoDeviceObjectType)
                         {
                             PDEVICE_OBJECT DeviceObject = NULL;
-
                             if (!APIsDriverInList(di, ((PDEVICE_OBJECT)ObjectDirectoryEntry->Object)->DriverObject, DriverCount))
                             {
                                 APGetDriverInfo(di, ((PDEVICE_OBJECT)ObjectDirectoryEntry->Object)->DriverObject, DriverCount);
                             }
-
                             // 遍历设备栈
                             for (DeviceObject = ((PDEVICE_OBJECT)ObjectDirectoryEntry->Object)->AttachedDevice;
                                 DeviceObject && MmIsAddressValid(DeviceObject);
@@ -331,19 +288,13 @@ APIterateDirectoryObject(IN PVOID DirectoryObject, OUT PDRIVER_INFORMATION di, I
         }
 
         KeLowerIrql(OldIrql);
-    }
+
+    } while (FALSE);
+
 }
 
 
-/************************************************************************
-*  Name : APEnumDriverModuleByIterateDirectoryObject
-*  Param: di
-*  Param: DriverCount
-*  Ret  : VOID
-*  通过遍历目录对象来遍历系统内的驱动对象
-************************************************************************/
-VOID
-APEnumDriverModuleByIterateDirectoryObject(OUT PDRIVER_INFORMATION di, IN UINT32 DriverCount)
+VOID APEnumDriverModuleByIterateDirectoryObject(OUT PDRIVER_INFORMATION di, IN UINT32 DriverCount)
 {
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
     HANDLE   DirectoryHandle = NULL;
@@ -370,7 +321,6 @@ APEnumDriverModuleByIterateDirectoryObject(OUT PDRIVER_INFORMATION di, IN UINT32
         if (NT_SUCCESS(Status))
         {
             g_DirectoryObjectType = (POBJECT_TYPE)APGetObjectType(DirectoryObject);        // 全局保存目录对象类型 便于后续比较
-
             APIterateDirectoryObject(DirectoryObject, di, DriverCount);
             ObDereferenceObject(DirectoryObject);
         }
@@ -386,15 +336,8 @@ APEnumDriverModuleByIterateDirectoryObject(OUT PDRIVER_INFORMATION di, IN UINT32
 }
 
 
-/************************************************************************
-*  Name : APEnumDriverInfo
-*  Param: OutputBuffer            Ring3Buffer      （OUT）
-*  Param: OutputLength            Ring3BufferLength（IN）
-*  Ret  : NTSTATUS
-*  通过FileObject获得进程完整路径
-************************************************************************/
-NTSTATUS
-APEnumDriverInfo(OUT PVOID OutputBuffer, IN UINT32 OutputLength)
+
+NTSTATUS APEnumDriverInfo(OUT PVOID OutputBuffer, IN UINT32 OutputLength)
 {
     NTSTATUS              Status = STATUS_UNSUCCESSFUL;
     PLDR_DATA_TABLE_ENTRY NtLdr = NULL;
@@ -422,18 +365,11 @@ APEnumDriverInfo(OUT PVOID OutputBuffer, IN UINT32 OutputLength)
 }
 
 
-/************************************************************************
-*  Name : APIsValidDriverObject
-*  Param: OutputBuffer            DriverObject
-*  Ret  : BOOLEAN
-*  判断一个驱动是否为真的驱动对象
-************************************************************************/
-BOOLEAN
-APIsValidDriverObject(IN PDRIVER_OBJECT DriverObject)
+BOOLEAN APIsValidDriverObject(IN PDRIVER_OBJECT DriverObject)
 {
     BOOLEAN bOk = FALSE;
-    if (!*IoDriverObjectType ||
-        !*IoDeviceObjectType)
+
+    if (!*IoDriverObjectType ||!*IoDeviceObjectType)
     {
         return bOk;
     }
@@ -645,7 +581,7 @@ APGetDeviceObjectNameInfo(IN PDEVICE_OBJECT DeviceObject, OUT PWCHAR DeviceName)
         {
             PVOID NameBuffer = NULL;
 
-            NameBuffer = ExAllocatePool(PagedPool, ReturnLength);
+            NameBuffer = ExAllocatePool(NonPagedPool, ReturnLength);
             if (NameBuffer)
             {
                 RtlZeroMemory(NameBuffer, ReturnLength);

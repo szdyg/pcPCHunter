@@ -55,33 +55,23 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Register
 }
 
 
-/************************************************************************
-*  Name : APInitDynamicData
-*  Param: DynamicData            信息
-*  Ret  : NTSTATUS
-*  初始化信息
-************************************************************************/
+
 NTSTATUS APInitializeDynamicData(IN OUT PDYNAMIC_DATA DynamicData)
 {
     NTSTATUS                Status = STATUS_SUCCESS;
     RTL_OSVERSIONINFOEXW    VersionInfo = { 0 };
     VersionInfo.dwOSVersionInfoSize = sizeof(RTL_OSVERSIONINFOEXW);
 
-    if (DynamicData == NULL)
+    do
     {
-        return STATUS_INVALID_ADDRESS;
-    }
+        if (NULL == DynamicData)
+        {
+            Status = STATUS_INVALID_PARAMETER;
+            break;
+        }
+        RtlZeroMemory(DynamicData, sizeof(DYNAMIC_DATA));
 
-    RtlZeroMemory(DynamicData, sizeof(DYNAMIC_DATA));
-
-    // 获得计算机版本信息
-    Status = RtlGetVersion((PRTL_OSVERSIONINFOW)&VersionInfo);
-    if (NT_SUCCESS(Status))
-    {
-        UINT32 Version = (VersionInfo.dwMajorVersion << 8) | (VersionInfo.dwMinorVersion << 4) | VersionInfo.wServicePackMajor;
-        DynamicData->WinVersion = (eWinVersion)Version;
-
-        if (7==g_DriverInfo.OsVerSion.dwMajorVersion)
+        if (7 == g_DriverInfo.OsVerSion.dwMajorVersion)
         {
             //////////////////////////////////////////////////////////////////////////
             // EProcess
@@ -109,7 +99,6 @@ NTSTATUS APInitializeDynamicData(IN OUT PDYNAMIC_DATA DynamicData)
             //////////////////////////////////////////////////////////////////////////
             // Object
             DynamicData->SizeOfObjectHeader = 0x030;
-
             DynamicData->HandleTableEntryOffset = 0x010;
 
             //////////////////////////////////////////////////////////////////////////
@@ -118,7 +107,7 @@ NTSTATUS APInitializeDynamicData(IN OUT PDYNAMIC_DATA DynamicData)
         }
         else
         {
-            switch (Version)
+            switch (g_DriverInfo.OsVerSion.dwBuildNumber)
             {
             case WINVER_7:
             case WINVER_7_SP1:
@@ -129,12 +118,8 @@ NTSTATUS APInitializeDynamicData(IN OUT PDYNAMIC_DATA DynamicData)
             default:
                 break;
             }
-
-        }
-
-
-    }
-
+        } 
+    } while (FALSE);
     return Status;
 }
 

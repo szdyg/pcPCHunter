@@ -1,12 +1,12 @@
-#ifndef CXX_PspCidTable_H
-#define CXX_PspCidTable_H
 
+#pragma once
 #include <ntifs.h>
 #include "Private.h"
 
-UINT_PTR
-APGetPspCidTableAddress();
-
-
-
-#endif // !CXX_PspCidTable_H
+//************************************
+// 函数名:   APGetPspCidTableAddress
+// 权限：    public 
+// 返回值:   UINT_PTR
+// 说明：    通过PsLookupProcessByProcessId的硬编码获得PspCidTable地址
+//************************************
+UINT_PTR APGetPspCidTableAddress();

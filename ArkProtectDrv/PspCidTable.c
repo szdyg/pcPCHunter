@@ -2,14 +2,7 @@
 
 UINT_PTR g_PspCidTable = 0;
 
-/************************************************************************
-*  Name : APGetPspCidTableAddress
-*  Param: void
-*  Ret  : UINT_PTR     PspCidTable地址
-*  通过PsLookupProcessByProcessId的硬编码获得PspCidTable地址
-************************************************************************/
-UINT_PTR
-APGetPspCidTableAddress()
+UINT_PTR APGetPspCidTableAddress()
 {
     if (g_PspCidTable == 0)
     {
@@ -27,8 +20,6 @@ APGetPspCidTableAddress()
 
             StartSearchAddress = PsLookupProcessByProcessIdAddress;
             EndSearchAddress = StartSearchAddress + 0x200;
-
-#ifdef _WIN64
             /*
             3: kd> u PsLookupProcessByProcessId l 20
             nt!PsLookupProcessByProcessId:
@@ -65,43 +56,6 @@ APGetPspCidTableAddress()
                     }
                 }
             }
-
-#else
-            /*
-            0: kd> u PsLookupProcessByProcessId l 20
-            nt!PsLookupProcessByProcessId:
-            840a3575 8bff            mov     edi,edi
-            840a3577 55              push    ebp
-            840a3578 8bec            mov     ebp,esp
-            840a357a 83ec0c          sub     esp,0Ch
-            840a357d 53              push    ebx
-            840a357e 56              push    esi
-            840a357f 648b3524010000  mov     esi,dword ptr fs:[124h]
-            840a3586 33db            xor     ebx,ebx
-            840a3588 66ff8e84000000  dec     word ptr [esi+84h]
-            840a358f 57              push    edi
-            840a3590 ff7508          push    dword ptr [ebp+8]
-            840a3593 8b3d349ff883    mov     edi,dword ptr [nt!PspCidTable (83f89f34)]
-            840a3599 e8d958feff      call    nt!ExMapHandleToPointer (84088e77)
-            */
-
-            for (i = StartSearchAddress; i < EndSearchAddress; i++)
-            {
-                if (MmIsAddressValid(i) && MmIsAddressValid(i + 1) && MmIsAddressValid(i + 6))
-                {
-                    v1 = *i;
-                    v2 = *(i + 1);
-                    v3 = *(i + 6);
-                    if (v1 == 0x8b && v2 == 0x3d && v3 == 0xe8)        // 488b0d后面有重复出现的，所以+7判断e8
-                    {
-                        g_PspCidTable = *(PUINT32)(i + 2);
-                        DbgPrint("PspCidTable :%p\r\n", g_PspCidTable);
-                        break;
-                    }
-                }
-            }
-#endif // _WIN64
-
         }
     }
 

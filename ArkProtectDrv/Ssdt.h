@@ -27,10 +27,16 @@ typedef struct _SSDT_HOOK_INFORMATION
 // 函数名:   APGetCurrentSsdtAddress
 // 权限：    public 
 // 返回值:   UINT_PTR
-// 说明：    获得SSDT地址（x86 搜索导出表/x64 硬编码，算偏移）
+// 说明：    获得SSDT地址
 //************************************
 UINT_PTR APGetCurrentSsdtAddress();
 
+//************************************
+// 函数名:   APInitializeSsdtFunctionName
+// 权限：    public 
+// 返回值:   NTSTATUS
+// 说明：    初始化保存SsdtFunctionNamde的全局数组
+//************************************
 NTSTATUS APInitializeSsdtFunctionName();
 
 VOID  APFixKiServiceTable(IN PVOID ImageBase, IN PVOID OriginalBase);

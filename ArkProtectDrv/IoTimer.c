@@ -7,8 +7,7 @@
 *  Ret  : UINT_PTR
 *  通过IoInitializeTimer的硬编码获得IopTimerQueueHead地址
 ************************************************************************/
-UINT_PTR
-APGetIopTimerQueueHead()
+UINT_PTR APGetIopTimerQueueHead()
 {
     PUINT8        IoInitializeTimerAddress = NULL;
 
@@ -51,15 +50,8 @@ APGetIopTimerQueueHead()
 }
 
 
-/************************************************************************
-*  Name : APEnumIoTimerByIterateIopTimerQueueHead
-*  Param: iti
-*  Param: IoTimerCount
-*  Ret  : NTSTATUS
-*  通过遍历IopTimerQueueHead枚举IoTimer对象信息
-************************************************************************/
-NTSTATUS
-APEnumIoTimerByIterateIopTimerQueueHead(OUT PIO_TIMER_INFORMATION iti, IN UINT32 IoTimerCount)
+
+NTSTATUS APEnumIoTimerByIterateIopTimerQueueHead(OUT PIO_TIMER_INFORMATION iti, IN UINT32 IoTimerCount)
 {
     NTSTATUS    Status = STATUS_UNSUCCESSFUL;
     PLIST_ENTRY IopTimerQueueHead = (PLIST_ENTRY)APGetIopTimerQueueHead();
@@ -124,8 +116,7 @@ APEnumIoTimerByIterateIopTimerQueueHead(OUT PIO_TIMER_INFORMATION iti, IN UINT32
 *  Ret  : NTSTATUS
 *  枚举IoTimer对象
 ************************************************************************/
-NTSTATUS
-APEnumIoTimer(OUT PVOID OutputBuffer, IN UINT32 OutputLength)
+NTSTATUS APEnumIoTimer(OUT PVOID OutputBuffer, IN UINT32 OutputLength)
 {
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
 

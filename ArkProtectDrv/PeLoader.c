@@ -11,30 +11,29 @@ extern GOLBAL_INFO g_DriverInfo;
 *  Ret  : BOOLEAN
 *  将PE文件映射到内核空间
 ************************************************************************/
-NTSTATUS
-APMappingFileInKernelSpace(IN WCHAR* wzFileFullPath, OUT PVOID* MappingBaseAddress)
+NTSTATUS APMappingFileInKernelSpace(IN PWCHAR wzFileFullPath, OUT PVOID * ppMappingBaseAddress)
 {
     NTSTATUS  Status = STATUS_UNSUCCESSFUL;
-
-    if (wzFileFullPath && MappingBaseAddress)
+    HANDLE    hFile = NULL;
+    HANDLE    hSection = NULL;
+    SIZE_T    MappingViewSize = 0;
+    UNICODE_STRING    ucFileFullPath = { 0 };
+    OBJECT_ATTRIBUTES oa = { 0 };
+    IO_STATUS_BLOCK   IoStack = { 0 };
+    do
     {
-        UNICODE_STRING    uniFileFullPath = { 0 };
-        OBJECT_ATTRIBUTES oa = { 0 };
-        IO_STATUS_BLOCK   Iosb = { 0 };
-        HANDLE              FileHandle = NULL;
-        HANDLE              SectionHandle = NULL;
-
-        RtlInitUnicodeString(&uniFileFullPath, wzFileFullPath);        // 常量指针格式化到unicode
-        InitializeObjectAttributes(&oa,                                    // 初始化 oa
-            &uniFileFullPath,                                            // Dll完整路径
-            OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE,                    // 不区分大小写 | 内核句柄
-            NULL,
-            NULL);
-
-        Status = IoCreateFile(&FileHandle,                                // 获得文件句柄
-            GENERIC_READ | SYNCHRONIZE,                                    // 同步读
-            &oa,                                                        // 文件绝对路径
-            &Iosb,
+        if (NULL == wzFileFullPath || NULL == ppMappingBaseAddress)
+        {
+            Status = STATUS_INVALID_PARAMETER;
+            break;
+        }
+        RtlInitUnicodeString(&ucFileFullPath, wzFileFullPath);
+        InitializeObjectAttributes(&oa, &ucFileFullPath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
+        Status = IoCreateFile(
+            &hFile,
+            GENERIC_READ | SYNCHRONIZE, // 同步读
+            &oa,
+            &IoStack,
             NULL,
             FILE_ATTRIBUTE_NORMAL,
             FILE_SHARE_READ,
@@ -45,125 +44,109 @@ APMappingFileInKernelSpace(IN WCHAR* wzFileFullPath, OUT PVOID* MappingBaseAddre
             CreateFileTypeNone,
             NULL,
             IO_NO_PARAMETER_CHECKING);
-
-        if (NT_SUCCESS(Status))
+        if (!NT_SUCCESS(Status))
         {
-            InitializeObjectAttributes(&oa, NULL, OBJ_KERNEL_HANDLE, NULL, NULL);
-
-            Status = ZwCreateSection(&SectionHandle,            // 创建节对象,用于后面文件映射 （CreateFileMapping）
-                SECTION_QUERY | SECTION_MAP_READ,
-                &oa,
-                NULL,
-                PAGE_WRITECOPY,
-                SEC_IMAGE,              // 内存对齐
-                FileHandle);
-
-            if (NT_SUCCESS(Status))
-            {
-                SIZE_T MappingViewSize = 0;
-
-                Status = ZwMapViewOfSection(SectionHandle,
-                    ZwCurrentProcess(),                // 映射到当前进程的内存空间中 System
-                    MappingBaseAddress,
-                    0,
-                    0,
-                    0,
-                    &MappingViewSize,
-                    ViewUnmap,
-                    0,
-                    PAGE_WRITECOPY);
-
-                ZwClose(SectionHandle);
-            }
-            ZwClose(FileHandle);
+            break;
         }
-    }
 
+        // 创建节对象,用于后面文件映射 （CreateFileMapping）
+        InitializeObjectAttributes(&oa, NULL, OBJ_KERNEL_HANDLE, NULL, NULL);
+        Status = ZwCreateSection(
+            &hSection,            
+            SECTION_QUERY | SECTION_MAP_READ,
+            &oa,
+            NULL,
+            PAGE_WRITECOPY,
+            SEC_IMAGE,          // 内存对齐
+            hFile);
+        if (!NT_SUCCESS(Status))
+        {
+            break;
+        }
+        Status = ZwMapViewOfSection(
+            hSection,
+            ZwCurrentProcess(),                // 映射到当前进程的内存空间中 System
+            ppMappingBaseAddress,
+            0,
+            0,
+            0,
+            &MappingViewSize,
+            ViewUnmap,
+            0,
+            PAGE_WRITECOPY);
+
+    } while (FALSE);
+    if (hSection != NULL)
+    {
+        ZwClose(hSection);
+        hSection = NULL;
+    }
+    if (hFile != NULL)
+    {
+        ZwClose(hFile);
+        hFile = NULL;
+    }
     return Status;
 }
 
 
-/************************************************************************
-*  Name : APGetFileBuffer
-*  Param: uniFilePath            文件路径 （PUNICODE_STRING）
-*  Ret  : PVOID                 读取文件到内存的首地址
-*  读取文件到内存
-************************************************************************/
-PVOID
-APGetFileBuffer(IN PUNICODE_STRING uniFilePath)
+PVOID APGetFileBuffer(IN PUNICODE_STRING uniFilePath)
 {
     NTSTATUS          Status = STATUS_UNSUCCESSFUL;
     OBJECT_ATTRIBUTES oa = { 0 };
     HANDLE            FileHandle = NULL;
     IO_STATUS_BLOCK   IoStatusBlock = { 0 };
     PVOID             FileBuffer = NULL;
-
-    InitializeObjectAttributes(&oa, uniFilePath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
-    Status = ZwCreateFile(&FileHandle,
-        FILE_READ_DATA,
-        &oa,
-        &IoStatusBlock,
-        NULL,
-        FILE_ATTRIBUTE_NORMAL,
-        FILE_SHARE_READ,
-        FILE_OPEN,
-        FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT,
-        NULL,
-        0);
-    if (NT_SUCCESS(Status))
+    FILE_STANDARD_INFORMATION fsi = { 0 };
+    LARGE_INTEGER ReturnLength = { 0 };
+    do 
     {
-        FILE_STANDARD_INFORMATION fsi = { 0 };
-
-        // 文件长度
-        Status = ZwQueryInformationFile(FileHandle,
+        InitializeObjectAttributes(&oa, uniFilePath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
+        Status = ZwCreateFile(
+            &FileHandle,
+            FILE_READ_DATA,
+            &oa,
             &IoStatusBlock,
-            &fsi,
-            sizeof(FILE_STANDARD_INFORMATION),
-            FileStandardInformation);
-        if (NT_SUCCESS(Status))
-        {
-            DbgPrint("%d\r\n", IoStatusBlock.Information);
-            DbgPrint("%d\r\n", fsi.EndOfFile.LowPart);
+            NULL,
+            FILE_ATTRIBUTE_NORMAL,
+            FILE_SHARE_READ,
+            FILE_OPEN,
+            FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT,
+            NULL,
+            0);
 
-            FileBuffer = ExAllocatePool(PagedPool, fsi.EndOfFile.LowPart);
-            if (FileBuffer)
-            {
-                LARGE_INTEGER ReturnLength = { 0 };
-
-                Status = ZwReadFile(FileHandle, NULL, NULL, NULL, &IoStatusBlock, FileBuffer, fsi.EndOfFile.LowPart, &ReturnLength, NULL);
-                if (!NT_SUCCESS(Status))
-                {
-                    DbgPrint("APGetFileData::ZwReadFile Failed\r\n");
-                }
-            }
-            else
-            {
-                DbgPrint("APGetFileData::ZwQueryInformationFile Failed\r\n");
-            }
-        }
-        else
+        if (!NT_SUCCESS(Status))
         {
-            DbgPrint("APGetFileData::ZwQueryInformationFile Failed\r\n");
+            break;
         }
-        ZwClose(FileHandle);
-    }
-    else
+        // 查询文件长度
+        Status = ZwQueryInformationFile(FileHandle, &IoStatusBlock, &fsi, sizeof(FILE_STANDARD_INFORMATION), FileStandardInformation);
+        if (!NT_SUCCESS(Status))
+        {
+            break;
+        }
+        FileBuffer = ExAllocatePool(NonPagedPool, fsi.EndOfFile.LowPart);
+        if (NULL == FileBuffer)
+        {
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            break;
+        }
+        Status = ZwReadFile(FileHandle, NULL, NULL, NULL, &IoStatusBlock, FileBuffer, fsi.EndOfFile.LowPart, &ReturnLength, NULL);
+
+    } while (FALSE);
+
+   
+    if (FileHandle!=NULL)
     {
-        DbgPrint("APGetFileData::ZwCreateFile Failed\r\n");
+        ZwClose(FileHandle);
+        FileHandle = NULL;
     }
 
     return FileBuffer;
 }
 
 
-/************************************************************************
-*  Name : APGetModuleHandle
-*  Param: szModuleName            模块名称 （PCHAR）
-*  Ret  : PVOID                 模块在内存中首地址
-*  通过遍历Ldr枚举模块
-************************************************************************/
-PVOID
-APGetModuleHandle(IN PCHAR szModuleName)
+PVOID APGetModuleHandle(IN PCHAR szModuleName)
 {
     ANSI_STRING       ansiModuleName = { 0 };
     WCHAR             Buffer[256] = { 0 };
@@ -199,23 +182,20 @@ APGetModuleHandle(IN PCHAR szModuleName)
 *  Ret  : PVOID                 导出函数地址
 *  获得导出函数地址（处理转发）
 ************************************************************************/
-PVOID
-APGetProcAddress(IN PVOID ModuleBase, IN PCHAR szFunctionName)
+PVOID APGetProcAddress(IN PVOID ModuleBase, IN PCHAR szFunctionName)
 {
-    PIMAGE_DOS_HEADER            DosHeader = (PIMAGE_DOS_HEADER)ModuleBase;
-    PIMAGE_NT_HEADERS            NtHeader = (PIMAGE_NT_HEADERS)((PUINT8)ModuleBase + DosHeader->e_lfanew);
-    PIMAGE_EXPORT_DIRECTORY        ExportDirectory = (PIMAGE_EXPORT_DIRECTORY)((PUINT8)ModuleBase +
-        NtHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress);
+    PIMAGE_DOS_HEADER            pDosHeader = (PIMAGE_DOS_HEADER)ModuleBase;
+    PIMAGE_NT_HEADERS            pNtHeader = (PIMAGE_NT_HEADERS)((PUINT8)ModuleBase + pDosHeader->e_lfanew);
+    PIMAGE_EXPORT_DIRECTORY      pExportDirectory = (PIMAGE_EXPORT_DIRECTORY)((PUINT8)ModuleBase + pNtHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress);
 
-    UINT32    ExportDirectoryRVA = NtHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
-    UINT32    ExportDirectorySize = NtHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
+    UINT32 ExportDirectoryRVA = pNtHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
+    UINT32 ExportDirectorySize = pNtHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
 
-    PUINT32    AddressOfFunctions = (PUINT32)((PUINT8)ModuleBase + ExportDirectory->AddressOfFunctions);
-    PUINT32    AddressOfNames = (PUINT32)((PUINT8)ModuleBase + ExportDirectory->AddressOfNames);
-    PUINT16    AddressOfNameOrdinals = (PUINT16)((PUINT8)ModuleBase + ExportDirectory->AddressOfNameOrdinals);
-    UINT32 i = 0;
+    PUINT32 pAddressOfFunctions = (PUINT32)((PUINT8)ModuleBase + pExportDirectory->AddressOfFunctions);
+    PUINT32 pAddressOfNames = (PUINT32)((PUINT8)ModuleBase + pExportDirectory->AddressOfNames);
+    PUINT16 pAddressOfNameOrdinals = (PUINT16)((PUINT8)ModuleBase + pExportDirectory->AddressOfNameOrdinals);
 
-    for (  i = 0; i < ExportDirectory->NumberOfFunctions; i++)
+    for (UINT32 uIndex = 0; uIndex < pExportDirectory->NumberOfFunctions; uIndex++)
     {
         UINT16    Ordinal = 0xffff;
         PCHAR    Name = NULL;
@@ -223,23 +203,23 @@ APGetProcAddress(IN PVOID ModuleBase, IN PCHAR szFunctionName)
         // 按序号导出        
         if ((UINT_PTR)szFunctionName <= 0xffff)
         {
-            Ordinal = (UINT16)(i);        // 序号导出函数，得到的就是序号
+            Ordinal = (UINT16)(uIndex);        // 序号导出函数，得到的就是序号
         }
-        else if ((UINT_PTR)(szFunctionName) > 0xffff && i < ExportDirectory->NumberOfNames)       // 名称导出的都是地址，肯定比0xffff大,而且可以看出名称导出在序号导出之前
+        else if ((UINT_PTR)(szFunctionName) > 0xffff && uIndex < pExportDirectory->NumberOfNames)       // 名称导出的都是地址，肯定比0xffff大,而且可以看出名称导出在序号导出之前
         {
-            Name = (PCHAR)((PUINT8)ModuleBase + AddressOfNames[i]);
-            Ordinal = (UINT16)(AddressOfNameOrdinals[i]);        // 名称导出表中得到名称导出函数的序号 2字节
+            Name = (PCHAR)((PUINT8)ModuleBase + pAddressOfNames[uIndex]);
+            Ordinal = (UINT16)(pAddressOfNameOrdinals[uIndex]);        // 名称导出表中得到名称导出函数的序号 2字节
         }
         else
         {
             return 0;
         }
 
-        if (((UINT_PTR)(szFunctionName) <= 0xffff && (UINT16)((UINT_PTR)szFunctionName) == (Ordinal + ExportDirectory->Base)) ||
+        if (((UINT_PTR)(szFunctionName) <= 0xffff && (UINT16)((UINT_PTR)szFunctionName) == (Ordinal + pExportDirectory->Base)) ||
             ((UINT_PTR)(szFunctionName) > 0xffff && _stricmp(Name, szFunctionName) == 0))
         {
             // 目前不论是序号导出还是名称导出都是对的进这里
-            UINT_PTR FunctionAddress = (UINT_PTR)((PUINT8)ModuleBase + AddressOfFunctions[Ordinal]);        // 得到函数的地址（也许不是真实地址）
+            UINT_PTR FunctionAddress = (UINT_PTR)((PUINT8)ModuleBase + pAddressOfFunctions[Ordinal]);        // 得到函数的地址（也许不是真实地址）
 
             // 检查是不是forwarder export，如果刚得到的函数地址还在导出表范围内，则涉及到转发器（子dll导入父dll导出的函数后再导出----> 转发器）                                                                                        
             // 因为如果是函数真实地址，就已经超出了导出表地址范围
@@ -277,32 +257,23 @@ APGetProcAddress(IN PVOID ModuleBase, IN PCHAR szFunctionName)
     return NULL;
 }
 
-/************************************************************************
-*  Name : APFixImportAddressTable
-*  Param: ImageBase                新模块加载基地址 （PVOID）
-*  Ret  : VOID
-*  修正导入表  IAT 填充函数地址
-************************************************************************/
-VOID
-APFixImportAddressTable(IN PVOID ImageBase)
+VOID APFixImportAddressTable(IN PVOID ImageBase)
 {
-    PIMAGE_DOS_HEADER         DosHeader = (PIMAGE_DOS_HEADER)ImageBase;
-    PIMAGE_NT_HEADERS         NtHeader = (PIMAGE_NT_HEADERS)((PUINT8)ImageBase + DosHeader->e_lfanew);
-    PIMAGE_IMPORT_DESCRIPTOR  ImportDescriptor = (PIMAGE_IMPORT_DESCRIPTOR)((PUINT8)ImageBase +
-        NtHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress);
+    PIMAGE_DOS_HEADER         pDosHeader = (PIMAGE_DOS_HEADER)ImageBase;
+    PIMAGE_NT_HEADERS         pNtHeader = (PIMAGE_NT_HEADERS)((PUINT8)ImageBase + pDosHeader->e_lfanew);
+    PIMAGE_IMPORT_DESCRIPTOR  pImportDescriptor = (PIMAGE_IMPORT_DESCRIPTOR)((PUINT8)ImageBase + pNtHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress);
 
-    while (ImportDescriptor->Characteristics)
+    while (pImportDescriptor->Characteristics)
     {
-        PCHAR szImportModuleName = (PCHAR)((PUINT8)ImageBase + ImportDescriptor->Name);        // 导入模块
+        PCHAR szImportModuleName = (PCHAR)((PUINT8)ImageBase + pImportDescriptor->Name);        // 导入模块
         PVOID ImportModuleBase = APGetModuleHandle(szImportModuleName);    // 遍历List找到导入模块地址
 
         if (ImportModuleBase)
         {
-            PIMAGE_THUNK_DATA FirstThunk = (PIMAGE_THUNK_DATA)((PUINT8)ImageBase + ImportDescriptor->FirstThunk);
-            PIMAGE_THUNK_DATA OriginalFirstThunk = (PIMAGE_THUNK_DATA)((PUINT8)ImageBase + ImportDescriptor->OriginalFirstThunk);
-            UINT32 i = 0;
+            PIMAGE_THUNK_DATA FirstThunk = (PIMAGE_THUNK_DATA)((PUINT8)ImageBase + pImportDescriptor->FirstThunk);
+            PIMAGE_THUNK_DATA OriginalFirstThunk = (PIMAGE_THUNK_DATA)((PUINT8)ImageBase + pImportDescriptor->OriginalFirstThunk);
             // 遍历导入函数名称表
-            for (  i = 0; OriginalFirstThunk->u1.AddressOfData; i++)
+            for (UINT32 uIndex = 0; OriginalFirstThunk->u1.AddressOfData; uIndex++)
             {
                 // 在内核模块中，导入表不存在序号导入
                 if (!IMAGE_SNAP_BY_ORDINAL(OriginalFirstThunk->u1.Ordinal))
@@ -312,7 +283,7 @@ APFixImportAddressTable(IN PVOID ImageBase)
                     FunctionAddress = APGetProcAddress(ImportModuleBase, ImportByName->Name);
                     if (FunctionAddress)
                     {
-                        FirstThunk[i].u1.Function = (UINT_PTR)FunctionAddress;
+                        FirstThunk[uIndex].u1.Function = (UINT_PTR)FunctionAddress;
                     }
                     else
                     {
@@ -328,7 +299,7 @@ APFixImportAddressTable(IN PVOID ImageBase)
             DbgPrint("APFixImportAddressTable::No Such Module\r\n");
         }
 
-        ImportDescriptor++;    // 下一张导入表
+        pImportDescriptor++;    // 下一张导入表
     }
 }
 
@@ -370,57 +341,35 @@ afe5c59e 8bf8            mov     edi,eax
 afe5c5a0 85ff            test    edi,edi
 afe5c5a2 747c            je      afe5c620
 */
-/************************************************************************
-*  Name : APFixRelocBaseTable
-*  Param: ReloadBase            新模块加载基地址 （PVOID）
-*  Param: OriginalBase            原模块加载基地址 （PVOID）
-*  Ret  : VOID
-*  修正重定向表
-************************************************************************/
-VOID
-APFixRelocBaseTable(IN PVOID ReloadBase, IN PVOID OriginalBase)
+VOID APFixRelocBaseTable(IN PVOID ReloadBase, IN PVOID OriginalBase)
 {
-    PIMAGE_DOS_HEADER         DosHeader = (PIMAGE_DOS_HEADER)ReloadBase;
-    PIMAGE_NT_HEADERS         NtHeader = (PIMAGE_NT_HEADERS)((PUINT8)ReloadBase + DosHeader->e_lfanew);
-    PIMAGE_BASE_RELOCATION    BaseRelocation = (PIMAGE_BASE_RELOCATION)((PUINT8)ReloadBase +
-        NtHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress);
+    PIMAGE_DOS_HEADER         pDosHeader = (PIMAGE_DOS_HEADER)ReloadBase;
+    PIMAGE_NT_HEADERS         pNtHeader = (PIMAGE_NT_HEADERS)((PUINT8)ReloadBase + pDosHeader->e_lfanew);
+    PIMAGE_BASE_RELOCATION    pBaseRelocation = (PIMAGE_BASE_RELOCATION)((PUINT8)ReloadBase + pNtHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress);
 
-    if (BaseRelocation)
+    do
     {
-        while (BaseRelocation->SizeOfBlock)
+        if (NULL == pBaseRelocation)
         {
-            PUINT16    TypeOffset = (PUINT16)((PUINT8)BaseRelocation + sizeof(IMAGE_BASE_RELOCATION));
+            break;
+        }
+        while (pBaseRelocation->SizeOfBlock)
+        {
+            PUINT16    TypeOffset = (PUINT16)((PUINT8)pBaseRelocation + sizeof(IMAGE_BASE_RELOCATION));
             // 计算需要修正的重定向位项的数目
-            UINT32    NumberOfRelocations = (BaseRelocation->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION)) / sizeof(UINT16);
-            UINT32 i = 0;
-            for (  i = 0; i < NumberOfRelocations; i++)
+            UINT32    NumberOfRelocations = (pBaseRelocation->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION)) / sizeof(UINT16);
+            for (UINT32 uIndex = 0; uIndex < NumberOfRelocations; uIndex++)
             {
-                if ((TypeOffset[i] >> 12) == IMAGE_REL_BASED_DIR64)
+                if ((TypeOffset[uIndex] >> 12) == IMAGE_REL_BASED_DIR64)
                 {
-#ifdef _WIN64
                     // 调试发现 Win7 x64的全局变量没有能够修复成功
-                    PUINT64    RelocAddress = (PUINT64)((PUINT8)ReloadBase + BaseRelocation->VirtualAddress + (TypeOffset[i] & 0x0FFF));  // 定位到重定向块
-                    *RelocAddress = (UINT64)(*RelocAddress + (INT_PTR)((UINT_PTR)OriginalBase - (UINT_PTR)NtHeader->OptionalHeader.ImageBase));            // 重定向块的数据 + （真实加载地址 - 预加载地址 = Offset）
-
-                    //DbgPrint("RelocAddress: %p\r\n", RelocAddress);
-#endif // _WIN64
+                    PUINT64    RelocAddress = (PUINT64)((PUINT8)ReloadBase + pBaseRelocation->VirtualAddress + (TypeOffset[uIndex] & 0x0FFF));  // 定位到重定向块
+                    *RelocAddress = (UINT64)(*RelocAddress + (INT_PTR)((UINT_PTR)OriginalBase - (UINT_PTR)pNtHeader->OptionalHeader.ImageBase)); // 重定向块的数据 + （真实加载地址 - 预加载地址 = Offset）
                 }
-                else if ((TypeOffset[i] >> 12) == IMAGE_REL_BASED_HIGHLOW)
-                {
-#ifndef _WIN64
-                    PUINT32    RelocAddress = (PUINT32)((PUINT8)ReloadBase + BaseRelocation->VirtualAddress + (TypeOffset[i] & 0x0FFF));
-                    *RelocAddress = (UINT32)(*RelocAddress + (INT_PTR)((PUINT8)OriginalBase - NtHeader->OptionalHeader.ImageBase));
 
-                    //DbgPrint("RelocAddress: %p\r\n", RelocAddress);
-#endif // !_WIN64
-                }
             }
             // 转到下一张重定向表
-            BaseRelocation = (PIMAGE_BASE_RELOCATION)((UINT_PTR)BaseRelocation + BaseRelocation->SizeOfBlock);
+            pBaseRelocation = (PIMAGE_BASE_RELOCATION)((UINT_PTR)pBaseRelocation + pBaseRelocation->SizeOfBlock);
         }
-    }
-    else
-    {
-        DbgPrint("APFixRelocBaseTable::No BaseReloc\r\n");
-    }
+    } while (FALSE);
 }

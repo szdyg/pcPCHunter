@@ -1,6 +1,4 @@
-#ifndef CXX_ProcessWindow_H
-#define CXX_ProcessWindow_H
-
+#pragma once
 #include <ntifs.h>
 #include "Private.h"
 #include "ProcessCore.h"
@@ -24,14 +22,28 @@ typedef struct _PROCESS_WINDOW_INFORMATION
 
 
 
-NTSTATUS 
-APEnumProcessWindowByNtUserBuildHwndList(IN UINT32 ProcessId, IN PEPROCESS EProcess, OUT PPROCESS_WINDOW_INFORMATION pwi, IN UINT32 WindowCount);
+//************************************
+// 函数名:   APEnumProcessWindowByNtUserBuildHwndList
+// 权限：    public 
+// 返回值:   NTSTATUS
+// 参数：    IN UINT32 ProcessId
+// 参数：    IN PEPROCESS EProcess
+// 参数：    OUT PPROCESS_WINDOW_INFORMATION pwi
+// 参数：    IN UINT32 WindowCount
+// 说明：    通过NtUserBuildHwndList枚举进程窗口
+//************************************
+NTSTATUS APEnumProcessWindowByNtUserBuildHwndList(IN UINT32 ProcessId, IN PEPROCESS EProcess, OUT PPROCESS_WINDOW_INFORMATION pwi, IN UINT32 WindowCount);
 
-NTSTATUS
-APEnumProcessWindow(IN UINT32 ProcessId, OUT PVOID OutputBuffer, IN UINT32 OutputLength);
+//************************************
+// 函数名:   APEnumProcessWindow
+// 权限：    public 
+// 返回值:   NTSTATUS
+// 参数：    IN UINT32 ProcessId             进程ID
+// 参数：    OUT PVOID OutputBuffer          R3内存
+// 参数：    IN UINT32 OutputLength          内存长度
+// 说明：    
+//************************************
+NTSTATUS APEnumProcessWindow(IN UINT32 ProcessId, OUT PVOID OutputBuffer, IN UINT32 OutputLength);
 
-
-
-#endif // !CXX_ProcessWindow_H
 
 

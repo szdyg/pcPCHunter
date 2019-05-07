@@ -3,152 +3,134 @@
 
 extern GOLBAL_INFO g_DriverInfo;
 
-UINT32 g_VolumeStartCount = 0;
-UINT32 g_FileSystemStartCount = 0;
+FILTER_DRIVER_INFO g_Filter_Info = { 0 };
 
 
-/************************************************************************
-*  Name : APGetFilterDriverInfo
-*  Param: HighDeviceObject              上层设备对象
-*  Param: LowDriverObject               下层驱动对象
-*  Param: fdi                           Ring3Buffer
-*  Param: FilterDriverCount             Count
-*  Param: FilterType                    类型
-*  Ret  : BOOL
-*  与驱动层通信，枚举进程模块信息
-************************************************************************/
-NTSTATUS 
-APGetFilterDriverInfo(IN PDEVICE_OBJECT HighDeviceObject, IN PDRIVER_OBJECT LowDriverObject, OUT PFILTER_DRIVER_INFORMATION fdi,
-    IN UINT32 FilterDriverCount, IN eFilterType FilterType)
+NTSTATUS APGetFilterDriverInfo(IN PDEVICE_OBJECT HighDeviceObject, IN PDRIVER_OBJECT LowDriverObject, OUT PFILTER_DRIVER_INFORMATION fdi, IN UINT32 FilterDriverCount, IN ULONG FilterType)
 {
-    if (HighDeviceObject && MmIsAddressValid((PVOID)HighDeviceObject)
-        && LowDriverObject && MmIsAddressValid((PVOID)LowDriverObject)
-        && fdi && MmIsAddressValid((PVOID)fdi))
+
+    NTSTATUS status = STATUS_SUCCESS;
+    PDRIVER_OBJECT HighDriverObject = NULL;
+    PLDR_DATA_TABLE_ENTRY LdrDataTableEntry = NULL;
+    UINT32 uIndex = 0;
+    do
     {
-        if (FilterDriverCount > fdi->NumberOfFilterDrivers)
+        if (NULL == HighDeviceObject ||
+            NULL == LowDriverObject ||
+            NULL == fdi ||
+            !MmIsAddressValid((PVOID)HighDeviceObject) ||
+            !MmIsAddressValid((PVOID)LowDriverObject) ||
+            !MmIsAddressValid((PVOID)fdi))
         {
-            PDRIVER_OBJECT        HighDriverObject = HighDeviceObject->DriverObject;        // 去挂钩设备的驱动对象（上层）
-            PLDR_DATA_TABLE_ENTRY LdrDataTableEntry = NULL;
+            status = STATUS_INVALID_PARAMETER;
+            break;
+        }
+        if (FilterDriverCount <= fdi->NumberOfFilterDrivers)
+        {
+            status = STATUS_BUFFER_TOO_SMALL;
+            break;
+        }
 
-            if (FilterType == ft_File || FilterType == ft_Raw)
+        HighDriverObject = HighDeviceObject->DriverObject;        // 去挂钩设备的驱动对象（上层）       
+        if (FilterType == ft_File || FilterType == ft_Raw)
+        {
+
+            for (uIndex = 0; uIndex < fdi->NumberOfFilterDrivers; uIndex++)
             {
-                // 判断是否已经在List里了
-                /*if (g_FileSystemStartCount == 0)
+                if (_wcsnicmp(fdi->FilterDriverEntry[uIndex].wzFilterDriverName, HighDriverObject->DriverName.Buffer, wcslen(fdi->FilterDriverEntry[uIndex].wzFilterDriverName)) == 0 &&
+                    _wcsnicmp(fdi->FilterDriverEntry[uIndex].wzAttachedDriverName, HighDriverObject->DriverName.Buffer, wcslen(fdi->FilterDriverEntry[uIndex].wzAttachedDriverName)) == 0)
                 {
-                    g_FileSystemStartCount = fdi->NumberOfFilterDrivers;
-                }*/
-                UINT32 i = 0;
-                for (  i = 0; i < fdi->NumberOfFilterDrivers; i++)
-                {
-                    if (_wcsnicmp(fdi->FilterDriverEntry[i].wzFilterDriverName, HighDriverObject->DriverName.Buffer, wcslen(fdi->FilterDriverEntry[i].wzFilterDriverName)) == 0 &&
-                        _wcsnicmp(fdi->FilterDriverEntry[i].wzAttachedDriverName, HighDriverObject->DriverName.Buffer, wcslen(fdi->FilterDriverEntry[i].wzAttachedDriverName)) == 0)
-                    {
-                        return STATUS_SUCCESS;
-                    }
-                }
-            }
-            if (FilterType == ft_Volume)
-            {
-                UINT32 i = 0;
-                // 判断是否已经在List里了
-                /*if (g_VolumeStartCount == 0)
-                {
-                    g_VolumeStartCount = fdi->NumberOfFilterDrivers;
-                }*/
-                for (  i = 0; i < fdi->NumberOfFilterDrivers; i++)
-                {
-                    if (_wcsnicmp(fdi->FilterDriverEntry[i].wzFilterDriverName, HighDriverObject->DriverName.Buffer, wcslen(fdi->FilterDriverEntry[i].wzFilterDriverName)) == 0 &&
-                        _wcsnicmp(fdi->FilterDriverEntry[i].wzAttachedDriverName, HighDriverObject->DriverName.Buffer, wcslen(fdi->FilterDriverEntry[i].wzAttachedDriverName)) == 0)
-                    {
-                        return STATUS_SUCCESS;
-                    }
-                }
-            }
-
-            fdi->FilterDriverEntry[fdi->NumberOfFilterDrivers].FilterType = FilterType;
-            fdi->FilterDriverEntry[fdi->NumberOfFilterDrivers].FilterDeviceObject = (UINT_PTR)HighDeviceObject;
-
-            // 挂钩驱动（上层）（过滤驱动对象）
-            if (APIsUnicodeStringValid(&(HighDriverObject->DriverName)))
-            {
-                //RtlZeroMemory(fdi->FilterDriverEntry[fdi->NumberOfFilterDrivers].wzFilterDriverName, MAX_PATH);
-                RtlCopyMemory(fdi->FilterDriverEntry[fdi->NumberOfFilterDrivers].wzFilterDriverName, HighDriverObject->DriverName.Buffer, HighDriverObject->DriverName.Length);
-            }
-
-            // 挂钩驱动（上层）（过滤驱动的设备对象名称）
-            APGetDeviceObjectNameInfo(HighDeviceObject, fdi->FilterDriverEntry[fdi->NumberOfFilterDrivers].wzFilterDeviceName);
-
-            // 被挂钩驱动（下层）(宿主驱动对象)
-            if (APIsUnicodeStringValid(&(LowDriverObject->DriverName)))
-            {
-                //RtlZeroMemory(fdi->FilterDriverEntry[fdi->NumberOfFilterDrivers].wzAttachedDriverName, MAX_PATH);
-                RtlCopyMemory(fdi->FilterDriverEntry[fdi->NumberOfFilterDrivers].wzAttachedDriverName, LowDriverObject->DriverName.Buffer, LowDriverObject->DriverName.Length);
-            }
-
-            // 过滤驱动对象路径
-            LdrDataTableEntry = (PLDR_DATA_TABLE_ENTRY)HighDriverObject->DriverSection;
-
-            if ((UINT_PTR)LdrDataTableEntry > g_DriverInfo.DynamicData.MinKernelSpaceAddress)
-            {
-                if (APIsUnicodeStringValid(&(LdrDataTableEntry->FullDllName)))
-                {
-                //    RtlZeroMemory(fdi->FilterDriverEntry[fdi->NumberOfFilterDrivers].wzFilePath, MAX_PATH);
-                    RtlCopyMemory(fdi->FilterDriverEntry[fdi->NumberOfFilterDrivers].wzFilePath, LdrDataTableEntry->FullDllName.Buffer, LdrDataTableEntry->FullDllName.Length);
-                }
-                else if (APIsUnicodeStringValid(&(LdrDataTableEntry->BaseDllName)))
-                {
-                //    RtlZeroMemory(fdi->FilterDriverEntry[fdi->NumberOfFilterDrivers].wzFilePath, MAX_PATH);
-                    RtlCopyMemory(fdi->FilterDriverEntry[fdi->NumberOfFilterDrivers].wzFilePath, LdrDataTableEntry->BaseDllName.Buffer, LdrDataTableEntry->BaseDllName.Length);
+                    return STATUS_SUCCESS;
                 }
             }
         }
-        else
+        if (FilterType == ft_Volume)
         {
-            return STATUS_BUFFER_TOO_SMALL;
+            UINT32 i = 0;
+            for (i = 0; i < fdi->NumberOfFilterDrivers; i++)
+            {
+                if (_wcsnicmp(fdi->FilterDriverEntry[i].wzFilterDriverName, HighDriverObject->DriverName.Buffer, wcslen(fdi->FilterDriverEntry[i].wzFilterDriverName)) == 0 &&
+                    _wcsnicmp(fdi->FilterDriverEntry[i].wzAttachedDriverName, HighDriverObject->DriverName.Buffer, wcslen(fdi->FilterDriverEntry[i].wzAttachedDriverName)) == 0)
+                {
+                    return STATUS_SUCCESS;
+                }
+            }
         }
 
-        fdi->NumberOfFilterDrivers++;
+        fdi->FilterDriverEntry[fdi->NumberOfFilterDrivers].FilterType = FilterType;
+        fdi->FilterDriverEntry[fdi->NumberOfFilterDrivers].FilterDeviceObject = (UINT_PTR)HighDeviceObject;
 
-        return STATUS_SUCCESS;
-    }
-    return STATUS_UNSUCCESSFUL;
+        // 挂钩驱动（上层）（过滤驱动对象）
+        if (APIsUnicodeStringValid(&(HighDriverObject->DriverName)))
+        {
+            RtlCopyMemory(fdi->FilterDriverEntry[fdi->NumberOfFilterDrivers].wzFilterDriverName, HighDriverObject->DriverName.Buffer, HighDriverObject->DriverName.Length);
+        }
+
+        // 挂钩驱动（上层）（过滤驱动的设备对象名称）
+        APGetDeviceObjectNameInfo(HighDeviceObject, fdi->FilterDriverEntry[fdi->NumberOfFilterDrivers].wzFilterDeviceName);
+
+        // 被挂钩驱动（下层）(宿主驱动对象)
+        if (APIsUnicodeStringValid(&(LowDriverObject->DriverName)))
+        {
+            RtlCopyMemory(fdi->FilterDriverEntry[fdi->NumberOfFilterDrivers].wzAttachedDriverName, LowDriverObject->DriverName.Buffer, LowDriverObject->DriverName.Length);
+        }
+
+        // 过滤驱动对象路径
+        LdrDataTableEntry = (PLDR_DATA_TABLE_ENTRY)HighDriverObject->DriverSection;
+
+        if ((UINT_PTR)LdrDataTableEntry > g_DriverInfo.DynamicData.MinKernelSpaceAddress)
+        {
+            if (APIsUnicodeStringValid(&(LdrDataTableEntry->FullDllName)))
+            {
+                RtlCopyMemory(fdi->FilterDriverEntry[fdi->NumberOfFilterDrivers].wzFilePath, LdrDataTableEntry->FullDllName.Buffer, LdrDataTableEntry->FullDllName.Length);
+            }
+            else if (APIsUnicodeStringValid(&(LdrDataTableEntry->BaseDllName)))
+            {
+                RtlCopyMemory(fdi->FilterDriverEntry[fdi->NumberOfFilterDrivers].wzFilePath, LdrDataTableEntry->BaseDllName.Buffer, LdrDataTableEntry->BaseDllName.Length);
+            }
+        }
+        status = STATUS_SUCCESS;
+    } while (FALSE);
+
+    fdi->NumberOfFilterDrivers++;
+    return status;
 }
 
 
-NTSTATUS
-APGetFilterDriverByDriverName(IN WCHAR *wzDriverName, OUT  PFILTER_DRIVER_INFORMATION fdi, IN UINT32 FilterDriverCount, IN eFilterType FilterType)
+NTSTATUS APGetFilterDriverByDriverName(IN PWCHAR wzDriverName, OUT  PFILTER_DRIVER_INFORMATION fdi, IN UINT32 FilterDriverCount, IN ULONG FilterType)
 {
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
     UNICODE_STRING uniDriverName;
     PDRIVER_OBJECT DriverObject = NULL;
-
-    RtlInitUnicodeString(&uniDriverName, wzDriverName);
-
-    Status = ObReferenceObjectByName(
-        &uniDriverName,
-        OBJ_CASE_INSENSITIVE,
-        NULL,
-        0,
-        *IoDriverObjectType,
-        KernelMode,
-        NULL,
-        (PVOID*)&DriverObject);
-
-    if (NT_SUCCESS(Status) && DriverObject && MmIsAddressValid((PVOID)DriverObject))
+    PDEVICE_OBJECT DeviceObject = NULL;
+    PDRIVER_OBJECT LowDriverObject = NULL;
+    PDEVICE_OBJECT HighDeviceObject = NULL;
+    do 
     {
-        PDEVICE_OBJECT DeviceObject = NULL;
+        RtlInitUnicodeString(&uniDriverName, wzDriverName);
 
-        // 遍历水平层次结构 NextDevice 设备链
+        Status = ObReferenceObjectByName(
+            &uniDriverName,
+            OBJ_CASE_INSENSITIVE,
+            NULL,
+            0,
+            *IoDriverObjectType,
+            KernelMode,
+            NULL,
+            (PVOID*)&DriverObject);
+        if (!NT_SUCCESS(Status))
+        {
+            break;
+        }
         for (DeviceObject = DriverObject->DeviceObject;
             DeviceObject && MmIsAddressValid((PVOID)DeviceObject);
             DeviceObject = DeviceObject->NextDevice)
         {
-            PDRIVER_OBJECT LowDriverObject = DeviceObject->DriverObject;
-            PDEVICE_OBJECT HighDeviceObject = NULL;
+            LowDriverObject = DeviceObject->DriverObject;
 
             // 遍历垂直层次结构 AttachedDevice  设备栈
             for (HighDeviceObject = DeviceObject->AttachedDevice;
-                HighDeviceObject;
+                NULL != HighDeviceObject;
                 HighDeviceObject = HighDeviceObject->AttachedDevice)
             {
                 // HighDeviceObject --> 去挂载的驱动（上层）
@@ -158,9 +140,8 @@ APGetFilterDriverByDriverName(IN WCHAR *wzDriverName, OUT  PFILTER_DRIVER_INFORM
             }
 
         }
-
         ObDereferenceObject(DriverObject);
-    }
+    } while (FALSE);
 
     return Status;
 }
@@ -168,8 +149,7 @@ APGetFilterDriverByDriverName(IN WCHAR *wzDriverName, OUT  PFILTER_DRIVER_INFORM
 
 
 
-NTSTATUS
-APEnumFilterDriver(OUT PVOID OutputBuffer, IN UINT32 OutputLength)
+NTSTATUS APEnumFilterDriver(OUT PVOID OutputBuffer, IN UINT32 OutputLength)
 {
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
@@ -179,8 +159,8 @@ APEnumFilterDriver(OUT PVOID OutputBuffer, IN UINT32 OutputLength)
 
     // 写上所有的驱动名。
 
-    g_VolumeStartCount = 0;
-    g_FileSystemStartCount = 0;
+    g_Filter_Info.VolumeStartCount = 0;
+    g_Filter_Info.FileSystemStartCount = 0;
 
     APGetFilterDriverByDriverName(L"\\Driver\\Disk", fdi, FilterDriverCount, ft_Disk);
     APGetFilterDriverByDriverName(L"\\Driver\\volmgr", fdi, FilterDriverCount, ft_Volume);

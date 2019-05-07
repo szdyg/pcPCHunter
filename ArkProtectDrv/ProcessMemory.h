@@ -1,6 +1,4 @@
-#ifndef CXX_ProcessMemory_H
-#define CXX_ProcessMemory_H
-
+#pragma once
 #include <ntifs.h>
 #include "Private.h"
 #include "ProcessCore.h"
@@ -22,13 +20,26 @@ typedef struct _PROCESS_MEMORY_INFORMATION
 }PROCESS_MEMORY_INFORMATION, *PPROCESS_MEMORY_INFORMATION;
 
 
-NTSTATUS
-APEnumProcessMemoryByZwQueryVirtualMemory(IN PEPROCESS EProcess, OUT PPROCESS_MEMORY_INFORMATION pmi, IN UINT32 MemoryCount);
+//************************************
+// 函数名:   APEnumProcessMemoryByZwQueryVirtualMemory
+// 权限：    public 
+// 返回值:   NTSTATUS
+// 参数：    IN PEPROCESS EProcess                  进程结构体
+// 参数：    OUT PPROCESS_MEMORY_INFORMATION pmi    ring3内存
+// 参数：    IN UINT32 MemoryCount                  个数
+// 说明：    
+//************************************
+NTSTATUS APEnumProcessMemoryByZwQueryVirtualMemory(IN PEPROCESS EProcess, OUT PPROCESS_MEMORY_INFORMATION pmi, IN UINT32 MemoryCount);
 
-NTSTATUS 
-APEnumProcessMemory(IN UINT32 ProcessId, OUT PVOID OutputBuffer, IN UINT32 OutputLength);
+//************************************
+// 函数名:   APEnumProcessMemory
+// 权限：    public 
+// 返回值:   NTSTATUS
+// 参数：    IN UINT32 ProcessId            进程Id
+// 参数：    OUT PVOID OutputBuffer         R3内存
+// 参数：    IN UINT32 OutputLength         内存长度
+// 说明：    枚举进程模块
+//************************************
+NTSTATUS APEnumProcessMemory(IN UINT32 ProcessId, OUT PVOID OutputBuffer, IN UINT32 OutputLength);
 
-
-
-#endif // !CXX_ProcessMemory_H
 

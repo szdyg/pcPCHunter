@@ -4,21 +4,8 @@
 #include "NtStructs.h"
 #include "GetSSDTFuncAddress.h"
 
-extern ULONG_PTR  ObjectTableOffsetOf_EPROCESS;
-extern ULONG_PTR  PreviousModeOffsetOf_KTHREAD;
-extern ULONG_PTR  IndexOffsetOfFunction;
+extern COMMON_INFO g_CommonInfo;
 
-extern ULONG_PTR  ObjectHeaderSize;
-extern ULONG_PTR  ObjectTypeOffsetOf_OBJECT_HEADER;
-extern ULONG_PTR  HighUserAddress;
-
-extern WIN_VERSION WinVersion;
-extern ULONG_PTR LdrInPebOffset;
-extern ULONG_PTR ModListInLdrOffset;
-
-extern ULONG_PTR  HighUserAddress;
-
-extern pfnNtQueryVirtualMemory   my_NtQueryVirtualMemoryAddress;
 
 
 

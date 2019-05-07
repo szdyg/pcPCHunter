@@ -109,7 +109,6 @@ VOID APFixWin32pServiceTable(IN PVOID ImageBase, IN PVOID OriginalBase)
     if (MmIsAddressValid(g_ReloadWin32pServiceTableAddress.Base))
     {
 
-#ifdef _WIN64
         UINT32 j;
         UINT32 i;
         // 刚开始保存的是函数的真实地址，我们保存在自己的全局数组中
@@ -126,24 +125,8 @@ VOID APFixWin32pServiceTable(IN PVOID ImageBase, IN PVOID OriginalBase)
             // 更新Ssdt->base中的成员为相对于Base的偏移
             *(UINT32*)((UINT64)g_ReloadWin32pServiceTableAddress.Base + i * 4) = (Temp - ((UINT64)g_CurrentWin32pServiceTableAddress->Base & 0xffffffff)) << 4;
         }
-
         DbgPrint("Current%p\n", g_CurrentWin32pServiceTableAddress->Base);
         DbgPrint("Reload%p\n", g_ReloadWin32pServiceTableAddress.Base);
-
-    /*    for (UINT32 i = 0; i < g_ReloadWin32pServiceTableAddress.Limit; i++)
-        {
-            g_SssdtItem[i] = *(UINT32*)((UINT64)g_ReloadWin32pServiceTableAddress.Base + i * 4);
-        }*/
-#else
-        UINT32 i;
-        for ( i = 0; i < g_ReloadWin32pServiceTableAddress.Limit; i++)
-        {
-            g_OriginalSssdtFunctionAddress[i] = *(UINT32*)((UINT_PTR)g_ReloadWin32pServiceTableAddress.Base + i * 4);
-            //g_SssdtItem[i] = g_OriginalSssdtFunctionAddress[i];
-            *(UINT32*)((UINT_PTR)g_ReloadWin32pServiceTableAddress.Base + i * 4) += KrnlOffset;      // 将所有Ssdt函数地址转到我们新加载到内存中的地址
-        }
-#endif // _WIN64
-
     }
     else
     {
@@ -258,20 +241,10 @@ NTSTATUS APEnumSssdtHookByReloadWin32k( PSSSDT_HOOK_INFORMATION shi,  UINT32 Sss
                 {
                     if (SssdtFunctionCount >= shi->NumberOfSssdtFunctions)
                     {
-#ifdef _WIN64
                         // 64位存储的是 偏移（高28位）
-                        //INT32 OriginalOffset = g_SssdtItem[i] >> 4;
                         INT32 CurrentOffset = (*(PINT32)((UINT64)g_CurrentWin32pServiceTableAddress->Base + i * 4)) >> 4;    // 带符号位的移位
-
                         UINT64 CurrentSssdtFunctionAddress = (UINT_PTR)((UINT_PTR)g_CurrentWin32pServiceTableAddress->Base + CurrentOffset);
                         UINT64 OriginalSssdtFunctionAddress = g_OriginalSssdtFunctionAddress[i];
-
-#else
-                        // 32位存储的是 绝对地址
-                        UINT32 CurrentSssdtFunctionAddress = *(UINT32*)((UINT32)g_CurrentWin32pServiceTableAddress->Base + i * 4);
-                        UINT32 OriginalSssdtFunctionAddress = g_OriginalSssdtFunctionAddress[i];
-
-#endif // _WIN64
 
                         if (OriginalSssdtFunctionAddress != CurrentSssdtFunctionAddress)   // 表明被Hook了
                         {
@@ -318,7 +291,7 @@ NTSTATUS APEnumSssdtHook( PVOID OutputBuffer,  UINT32 OutputLength)
 
     UINT32    SssdtFunctionCount = (OutputLength - sizeof(SSSDT_HOOK_INFORMATION)) / sizeof(SSSDT_HOOK_ENTRY_INFORMATION);
 
-    PSSSDT_HOOK_INFORMATION shi = (PSSSDT_HOOK_INFORMATION)ExAllocatePool(PagedPool, OutputLength);
+    PSSSDT_HOOK_INFORMATION shi = (PSSSDT_HOOK_INFORMATION)ExAllocatePool(NonPagedPool, OutputLength);
     if (shi)
     {
         RtlZeroMemory(shi, OutputLength);
@@ -352,25 +325,16 @@ NTSTATUS APResumeSssdtHook(IN UINT32 Ordinal)
     if (Ordinal == RESUME_ALL_HOOKS)
     {
         // 恢复所有SsdtHook
-
         // 对比Original&Current
-        UINT32 i = 0;
-        for ( i = 0; i < g_CurrentWin32pServiceTableAddress->Limit; i++)
+        for (UINT32 i = 0; i < g_CurrentWin32pServiceTableAddress->Limit; i++)
         {
 
-#ifdef _WIN64
             // 64位存储的是 偏移（高28位）
             INT32 CurrentOffset = (*(PINT32)((UINT64)g_CurrentWin32pServiceTableAddress->Base + i * 4)) >> 4;    // 带符号位的移位
 
             UINT64 CurrentSsdtFunctionAddress = (UINT_PTR)((UINT_PTR)g_CurrentWin32pServiceTableAddress->Base + CurrentOffset);
             UINT64 OriginalSsdtFunctionAddress = g_OriginalSssdtFunctionAddress[i];
 
-#else
-            // 32位存储的是 绝对地址
-            UINT32 CurrentSsdtFunctionAddress = *(UINT32*)((UINT32)g_CurrentWin32pServiceTableAddress->Base + i * 4);
-            UINT32 OriginalSsdtFunctionAddress = g_OriginalSssdtFunctionAddress[i];
-
-#endif // _WIN64
 
             if (OriginalSsdtFunctionAddress != CurrentSsdtFunctionAddress)   // 表明被Hook了
             {
@@ -427,13 +391,8 @@ UINT_PTR APGetSssdtFunctionAddress(IN PCWCHAR wzFunctionName)
 
         if (bOk)
         {
-#ifdef _WIN64
             INT32 CurrentOffset = (*(PINT32)((UINT64)g_CurrentWin32pServiceTableAddress->Base + Ordinal * 4)) >> 4;    // 带符号位的移位
-
             FunctionAddress = (UINT_PTR)((UINT_PTR)g_CurrentWin32pServiceTableAddress->Base + CurrentOffset);
-#else
-            FunctionAddress = *(UINT32*)((UINT32)g_CurrentWin32pServiceTableAddress->Base + Ordinal * 4);
-#endif // !_WIN64
         }
         else
         {

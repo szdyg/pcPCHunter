@@ -1,6 +1,4 @@
-#ifndef CXX_ProcessCore_H
-#define CXX_ProcessCore_H
-
+#pragma once
 #include <ntifs.h>
 #include "Private.h"
 #include "Imports.h"
@@ -171,8 +169,6 @@ NTSTATUS APTerminateProcess(IN UINT32 ProcessId);
 //************************************
 PEPROCESS APGetCsrssProcess();
 
-
-#endif // !CXX_ProcessCore_H
 
 
 

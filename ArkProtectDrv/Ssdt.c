@@ -7,7 +7,6 @@ PVOID    g_ReloadNtImage = NULL;       // 重载内核的基地址
 PKSERVICE_TABLE_DESCRIPTOR g_CurrentSsdtAddress = NULL;  // 当前系统运行着的Ntos的Ssdt基地址
 PKSERVICE_TABLE_DESCRIPTOR g_ReloadSsdtAddress = NULL;   // 我们重载出来的Ntos的Ssdt基地址
 UINT_PTR g_OriginalSsdtFunctionAddress[0x200] = { 0 };   // SsdtFunction原本的地址
-//UINT32   g_SsdtItem[0x200] = { 0 };                       // Ssdt表里面原始存放的数据
 WCHAR    g_SsdtFunctionName[0x200][100] = { 0 };          // Ssdt函数名称表（按序号存放）
 
 
@@ -15,7 +14,6 @@ UINT_PTR APGetCurrentSsdtAddress()
 {
     if (g_CurrentSsdtAddress == NULL)
     {
-#ifdef _WIN64
         /*
         kd> rdmsr c0000082
         msr[c0000082] = fffff800`03e81640
@@ -57,17 +55,6 @@ UINT_PTR APGetCurrentSsdtAddress()
             }
         }
 
-#else
-
-        /*
-        kd> dd KeServiceDescriptorTable
-        80553fa0  80502b8c 00000000 0000011c 80503000
-        */
-
-        // 在Ntoskrnl.exe的导出表中，获取到KeServiceDescriptorTable地址
-        APGetNtosExportVariableAddress(L"KeServiceDescriptorTable", (PVOID*)&g_CurrentSsdtAddress);
-
-#endif
     }
 
     DbgPrint("SSDTAddress is %p\r\n", g_CurrentSsdtAddress);
@@ -76,12 +63,6 @@ UINT_PTR APGetCurrentSsdtAddress()
 }
 
 
-/************************************************************************
-*  Name : APInitializeSsdtFunctionName
-*  Param: void
-*  Ret  : NTSTATUS
-*  初始化保存SsdtFunctionNamde的全局数组
-************************************************************************/
 NTSTATUS APInitializeSsdtFunctionName()
 {
     NTSTATUS  Status = STATUS_SUCCESS;
@@ -95,10 +76,6 @@ NTSTATUS APInitializeSsdtFunctionName()
 
     if (*g_SsdtFunctionName[0] == 0 || *g_SsdtFunctionName[CurrentSsdtAddress->Limit] == 0)
     {
-        UINT32    Count = 0;
-
-#ifdef _WIN64
-
         /* Win7 64bit
         004> u zwopenprocess
         ntdll!ZwOpenProcess:
@@ -109,24 +86,8 @@ NTSTATUS APInitializeSsdtFunctionName()
         00000000`774c157b 0f1f440000      nop     dword ptr [rax+rax]
         */
 
+        UINT32    Count = 0;
         UINT32    SsdtFunctionIndexOffset = 4;
-
-#else
-
-        /*     Win7 32bit
-        kd> u zwopenProcess
-        nt!ZwOpenProcess:
-        83e9162c b8be000000      mov     eax,0BEh
-        83e91631 8d542404        lea     edx,[esp+4]
-        83e91635 9c              pushfd
-        83e91636 6a08            push    8
-        83e91638 e8b1190000      call    nt!KiSystemService (83e92fee)
-        83e9163d c21000          ret     10h
-        */
-
-        UINT32    SsdtFunctionIndexOffset = 1;
-
-#endif
 
         // 1.映射ntdll到内存中
         WCHAR   wzFileFullPath[] = L"\\SystemRoot\\System32\\ntdll.dll";

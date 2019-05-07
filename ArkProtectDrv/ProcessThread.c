@@ -3,22 +3,11 @@
 
 extern GOLBAL_INFO g_DriverInfo;
 
-typedef NTSTATUS(*pfnPspTerminateThreadByPointer)(
-    IN PETHREAD Thread,
-    IN NTSTATUS ExitStatus,
-    IN BOOLEAN DirectTerminate);
+typedef NTSTATUS(*pfnPspTerminateThreadByPointer)(IN PETHREAD Thread, IN NTSTATUS ExitStatus, IN BOOLEAN DirectTerminate);
 
 
 
-/************************************************************************
-*  Name : APChangeThreadMode
-*  Param: EThread            线程体结构
-*  Param: WantedMode        想要的模式
-*  Ret  : UINT8             返回先前模式
-*  修改线程模式为目标模式
-************************************************************************/
-UINT8
-APChangeThreadMode(IN PETHREAD EThread, IN UINT8 WantedMode)
+UINT8 APChangeThreadMode(IN PETHREAD EThread, IN UINT8 WantedMode)
 {
     // 保存原先模式
     PUINT8 PreviousMode = (PUINT8)EThread + g_DriverInfo.DynamicData.PreviousMode;
@@ -28,15 +17,7 @@ APChangeThreadMode(IN PETHREAD EThread, IN UINT8 WantedMode)
 }
 
 
-/************************************************************************
-*  Name : APIsThreadInList
-*  Param: BaseAddress            模块基地址（OUT）
-*  Param: ModuleSize            模块大小（IN）
-*  Ret  : NTSTATUS
-*  通过FileObject获得进程完整路径
-************************************************************************/
-BOOLEAN
-APIsThreadInList(IN PETHREAD EThread, IN PPROCESS_THREAD_INFORMATION pti, IN UINT32 ThreadCount)
+BOOLEAN APIsThreadInList(IN PETHREAD EThread, IN PPROCESS_THREAD_INFORMATION pti, IN UINT32 ThreadCount)
 {
     BOOLEAN bOk = FALSE;
     UINT32  i = 0;
@@ -59,23 +40,16 @@ APIsThreadInList(IN PETHREAD EThread, IN PPROCESS_THREAD_INFORMATION pti, IN UIN
 }
 
 
-/************************************************************************
-*  Name : APGetThreadStartAddress
-*  Param: EThread            线程体对象
-*  Ret  : NTSTATUS
-*  通过FileObject获得进程完整路径
-************************************************************************/
+
+UINT_PTR APGetThreadStartAddress(IN PETHREAD EThread)
+{
 // StartAddress域包含了线程的启动地址，这是真正的线程启动地址，即入口地址。也就是我们在创建线程的之后指定的入口函数的地址
 // Win32StartAddress包含的是windows子系统接收到的线程启动地址，即CreateThread函数接收到的线程启动地址
 //  StartAddress域包含的通常是系统DLL中的线程启动地址，因而往往是相同的(例如kernel32.dll中的BaseProcessStart或BaseThreadStart函数)。
 // 而Win32StartAddress域中包含的才真正是windows子系统接收到的线程启动地址，即CreateThread中指定的那个函数入口地址。
-UINT_PTR
-APGetThreadStartAddress(IN PETHREAD EThread)
-{
     UINT_PTR StartAddress = 0;
 
-    if (!EThread ||
-        !MmIsAddressValid(EThread))
+    if (NULL == EThread || !MmIsAddressValid(EThread))
     {
         return StartAddress;
     }
@@ -106,76 +80,61 @@ APGetThreadStartAddress(IN PETHREAD EThread)
 }
 
 
-/************************************************************************
-*  Name : APGetProcessThreadInfo
-*  Param: EThread            线程体对象
-*  Param: EProcess            进程体对象
-*  Param: pti                
-*  Param: ThreadCount        
-*  Ret  : NTSTATUS
-*  通过FileObject获得进程完整路径
-************************************************************************/
-VOID
-APGetProcessThreadInfo(IN PETHREAD EThread, IN PEPROCESS EProcess, OUT PPROCESS_THREAD_INFORMATION pti, IN UINT32 ThreadCount)
+
+VOID APGetProcessThreadInfo(IN PETHREAD EThread, IN PEPROCESS EProcess, OUT PPROCESS_THREAD_INFORMATION pti, IN UINT32 ThreadCount)
 {
-    if (EThread && EProcess && MmIsAddressValid((PVOID)EThread))
+    PEPROCESS EThreadEProcess = NULL;
+    UINT32 uCurrentCount = 0;
+
+    do 
     {
+        if (NULL == EThread || NULL == EProcess || !MmIsAddressValid((PVOID)EThread))
+        {
+            break;
+        }
         // 通过线程体获得当前进程体
-        PEPROCESS EThreadEProcess = NULL;
         if (IoThreadToProcess)
-        {
             EThreadEProcess = IoThreadToProcess(EThread);
-        }
         else
-        {
             EThreadEProcess = (PEPROCESS)*(PUINT_PTR)((PUINT8)EThread + g_DriverInfo.DynamicData.Process);
+
+        // 判断传入进程体对象是否是线程体对象所属的进程体对象
+        if (EProcess != EThreadEProcess &&  
+            APIsThreadInList(EThread, pti, ThreadCount) ||
+            !NT_SUCCESS(ObReferenceObjectByPointer(EThread, 0, NULL, KernelMode)))
+        {
+            break;
         }
 
-        if (EProcess == EThreadEProcess &&   // 判断传入进程体对象是否是线程体对象所属的进程体对象
-            !APIsThreadInList(EThread, pti, ThreadCount) &&
-            NT_SUCCESS(ObReferenceObjectByPointer(EThread, 0, NULL, KernelMode)))
+        uCurrentCount = pti->NumberOfThreads;
+        if (ThreadCount > uCurrentCount)
         {
-            UINT32 CurrentCount = pti->NumberOfThreads;
-            if (ThreadCount > CurrentCount)
+            if (PsGetThreadId)
             {
-                if (PsGetThreadId)
-                {
-                    pti->ThreadEntry[CurrentCount].ThreadId = (UINT32)(UINT_PTR)PsGetThreadId(EThread);
-                }
-                else
-                {
-                    pti->ThreadEntry[CurrentCount].ThreadId = (UINT32)*(PUINT_PTR)((PUINT8)EThread + g_DriverInfo.DynamicData.Cid + sizeof(PVOID));
-                }
-
-                pti->ThreadEntry[CurrentCount].EThread = (UINT_PTR)EThread;
-                //pti->ThreadEntry[CurrentCount].Win32StartAddress = APGetThreadStartAddress(EThread);
-                pti->ThreadEntry[CurrentCount].Win32StartAddress = *(PUINT_PTR)((PUINT8)EThread + g_DriverInfo.DynamicData.Win32StartAddress);    // 线程真实入口地址    
-                pti->ThreadEntry[CurrentCount].Teb = *(PUINT_PTR)((PUINT8)EThread + g_DriverInfo.DynamicData.Teb);
-                pti->ThreadEntry[CurrentCount].Priority = *((PUINT8)EThread + g_DriverInfo.DynamicData.Priority);
-                pti->ThreadEntry[CurrentCount].ContextSwitches = *(PUINT32)((PUINT8)EThread + g_DriverInfo.DynamicData.ContextSwitches);
-                pti->ThreadEntry[CurrentCount].State = *((PUINT8)EThread + g_DriverInfo.DynamicData.State);
+                pti->ThreadEntry[uCurrentCount].ThreadId = (UINT32)(UINT_PTR)PsGetThreadId(EThread);
+            }
+            else
+            {
+                pti->ThreadEntry[uCurrentCount].ThreadId = (UINT32)*(PUINT_PTR)((PUINT8)EThread + g_DriverInfo.DynamicData.Cid + sizeof(PVOID));
             }
 
-            pti->NumberOfThreads++;
-
-            ObDereferenceObject(EThread);
+            pti->ThreadEntry[uCurrentCount].EThread = (UINT_PTR)EThread;
+            //pti->ThreadEntry[CurrentCount].Win32StartAddress = APGetThreadStartAddress(EThread);
+            pti->ThreadEntry[uCurrentCount].Win32StartAddress = *(PUINT_PTR)((PUINT8)EThread + g_DriverInfo.DynamicData.Win32StartAddress);    // 线程真实入口地址    
+            pti->ThreadEntry[uCurrentCount].Teb = *(PUINT_PTR)((PUINT8)EThread + g_DriverInfo.DynamicData.Teb);
+            pti->ThreadEntry[uCurrentCount].Priority = *((PUINT8)EThread + g_DriverInfo.DynamicData.Priority);
+            pti->ThreadEntry[uCurrentCount].ContextSwitches = *(PUINT32)((PUINT8)EThread + g_DriverInfo.DynamicData.ContextSwitches);
+            pti->ThreadEntry[uCurrentCount].State = *((PUINT8)EThread + g_DriverInfo.DynamicData.State);
         }
-    }
+        pti->NumberOfThreads++;
+        ObDereferenceObject(EThread);
+
+    } while (FALSE);
+    
 }
 
 
-/************************************************************************
-*  Name : APEnumProcessThreadByIterateFirstLevelHandleTable
-*  Param: TableCode
-*  Param: EProcess
-*  Param: pti
-*  Param: ThreadCount
-*  Ret  : VOID
-*  遍历一级表
-************************************************************************/
-VOID
-APEnumProcessThreadByIterateFirstLevelHandleTable(IN UINT_PTR TableCode, IN PEPROCESS EProcess,
-    OUT PPROCESS_THREAD_INFORMATION pti, IN UINT32 ThreadCount)
+VOID APEnumProcessThreadByIterateFirstLevelHandleTable(IN UINT_PTR TableCode, IN PEPROCESS EProcess, OUT PPROCESS_THREAD_INFORMATION pti, IN UINT32 ThreadCount)
 {
     /*
     Win7 x64 过16字节
@@ -230,9 +189,7 @@ APEnumProcessThreadByIterateFirstLevelHandleTable(IN UINT_PTR TableCode, IN PEPR
 *  Ret  : VOID
 *  遍历二级表
 ************************************************************************/
-VOID
-APEnumProcessThreadByIterateSecondLevelHandleTable(IN UINT_PTR TableCode, IN PEPROCESS EProcess,
-    OUT PPROCESS_THREAD_INFORMATION pti, IN UINT32 ThreadCount)
+VOID APEnumProcessThreadByIterateSecondLevelHandleTable(IN UINT_PTR TableCode, IN PEPROCESS EProcess,OUT PPROCESS_THREAD_INFORMATION pti, IN UINT32 ThreadCount)
 {
     /*
     Win7 x64
@@ -255,18 +212,8 @@ APEnumProcessThreadByIterateSecondLevelHandleTable(IN UINT_PTR TableCode, IN PEP
 
 }
 
-/************************************************************************
-*  Name : APEnumProcessThreadByIterateThirdLevelHandleTable
-*  Param: TableCode
-*  Param: EProcess
-*  Param: pti
-*  Param: ThreadCount
-*  Ret  : VOID
-*  遍历三级表
-************************************************************************/
-VOID
-APEnumProcessThreadByIterateThirdLevelHandleTable(IN UINT_PTR TableCode, IN PEPROCESS EProcess,
-    OUT PPROCESS_THREAD_INFORMATION pti, IN UINT32 ThreadCount)
+
+VOID APEnumProcessThreadByIterateThirdLevelHandleTable(IN UINT_PTR TableCode, IN PEPROCESS EProcess, OUT PPROCESS_THREAD_INFORMATION pti, IN UINT32 ThreadCount)
 {
     do
     {
@@ -278,16 +225,7 @@ APEnumProcessThreadByIterateThirdLevelHandleTable(IN UINT_PTR TableCode, IN PEPR
 }
 
 
-/************************************************************************
-*  Name : APEnumProcessThreadByIteratePspCidTable
-*  Param: EProcess                  进程结构体
-*  Param: pti
-*  Param: ThreadCount
-*  Ret  : NTSTATUS
-*  通过遍历EProcess和KProcess的ThreadListHead链表
-************************************************************************/
-NTSTATUS
-APEnumProcessThreadByIteratePspCidTable(IN PEPROCESS EProcess, OUT PPROCESS_THREAD_INFORMATION pti, IN UINT32 ThreadCount)
+NTSTATUS APEnumProcessThreadByIteratePspCidTable(IN PEPROCESS EProcess, OUT PPROCESS_THREAD_INFORMATION pti, IN UINT32 ThreadCount)
 {
     NTSTATUS    Status = STATUS_UNSUCCESSFUL;
 
@@ -354,42 +292,30 @@ APEnumProcessThreadByIteratePspCidTable(IN PEPROCESS EProcess, OUT PPROCESS_THRE
 
 
 
-/************************************************************************
-*  Name : APEnumProcessThreadByIterateThreadListHead
-*  Param: EProcess                  进程结构体
-*  Param: pti                     
-*  Param: ThreadCount
-*  Ret  : NTSTATUS
-*  通过遍历EProcess和KProcess的ThreadListHead链表
-************************************************************************/
-NTSTATUS
-APEnumProcessThreadByIterateThreadListHead(IN PEPROCESS EProcess, OUT PPROCESS_THREAD_INFORMATION pti, IN UINT32 ThreadCount)
+
+NTSTATUS APEnumProcessThreadByIterateThreadListHead(IN PEPROCESS EProcess, OUT PPROCESS_THREAD_INFORMATION pti, IN UINT32 ThreadCount)
 {
     NTSTATUS    Status = STATUS_UNSUCCESSFUL;
     PLIST_ENTRY ThreadListHead = (PLIST_ENTRY)((PUINT8)EProcess + g_DriverInfo.DynamicData.ThreadListHead_KPROCESS);
+    UINT_PTR    MaxCount = 0;
+    PLIST_ENTRY ThreadListEntry;
     
     if (ThreadListHead && MmIsAddressValid(ThreadListHead) && MmIsAddressValid(ThreadListHead->Flink))
     {
-    //    KIRQL       OldIrql = KeRaiseIrqlToDpcLevel();
-        UINT_PTR    MaxCount = PAGE_SIZE * 2;
-        PLIST_ENTRY ThreadListEntry;
-        for ( ThreadListEntry = ThreadListHead->Flink;
+        MaxCount = PAGE_SIZE * 2;
+        for (ThreadListEntry = ThreadListHead->Flink;
             MmIsAddressValid(ThreadListEntry) && ThreadListEntry != ThreadListHead && MaxCount--;
             ThreadListEntry = ThreadListEntry->Flink)
         {
             PETHREAD EThread = (PETHREAD)((PUINT8)ThreadListEntry - g_DriverInfo.DynamicData.ThreadListEntry_KTHREAD);
             APGetProcessThreadInfo(EThread, EProcess, pti, ThreadCount);
         }
-
-    //    KeLowerIrql(OldIrql);
     }
 
     ThreadListHead = (PLIST_ENTRY)((PUINT8)EProcess + g_DriverInfo.DynamicData.ThreadListHead_EPROCESS);
     if (ThreadListHead && MmIsAddressValid(ThreadListHead) && MmIsAddressValid(ThreadListHead->Flink))
     {
-    //    KIRQL       OldIrql = KeRaiseIrqlToDpcLevel();
-        UINT_PTR    MaxCount = PAGE_SIZE * 2;
-        PLIST_ENTRY ThreadListEntry;
+        MaxCount = PAGE_SIZE * 2;
         for ( ThreadListEntry = ThreadListHead->Flink;
             MmIsAddressValid(ThreadListEntry) && ThreadListEntry != ThreadListHead && MaxCount--;
             ThreadListEntry = ThreadListEntry->Flink)
@@ -397,8 +323,6 @@ APEnumProcessThreadByIterateThreadListHead(IN PEPROCESS EProcess, OUT PPROCESS_T
             PETHREAD EThread = (PETHREAD)((PUINT8)ThreadListEntry - g_DriverInfo.DynamicData.ThreadListEntry_KTHREAD);
             APGetProcessThreadInfo(EThread, EProcess, pti, ThreadCount);
         }
-
-    //    KeLowerIrql(OldIrql);
     }
     
     if (pti->NumberOfThreads)
@@ -412,39 +336,36 @@ APEnumProcessThreadByIterateThreadListHead(IN PEPROCESS EProcess, OUT PPROCESS_T
 }
 
 
-/************************************************************************
-*  Name : APEnumProcessThread
-*  Param: ProcessId                  进程结构体
-*  Param: OutputBuffer            Ring3内存
-*  Param: OutputLength
-*  Ret  : NTSTATUS
-*  通过遍历EProcess和KProcess的ThreadListHead链表
-************************************************************************/
-NTSTATUS
-APEnumProcessThread(IN UINT32 ProcessId, OUT PVOID OutputBuffer, IN UINT32 OutputLength)
+
+NTSTATUS APEnumProcessThread(IN UINT32 ProcessId, OUT PVOID OutputBuffer, IN UINT32 OutputLength)
 {
     NTSTATUS  Status = STATUS_UNSUCCESSFUL;
-
     PPROCESS_THREAD_INFORMATION pti = (PPROCESS_THREAD_INFORMATION)OutputBuffer;
     UINT32    ThreadCount = (OutputLength - sizeof(PROCESS_THREAD_INFORMATION)) / sizeof(PROCESS_THREAD_ENTRY_INFORMATION);
     PEPROCESS EProcess = NULL;
 
-    if (ProcessId == 0)
-    {
-        return Status;
-    }
-    else if (ProcessId == 4)
-    {
-        EProcess = g_DriverInfo.SystemEProcess;
-        Status = STATUS_SUCCESS;
-    }
-    else
-    {
-        Status = PsLookupProcessByProcessId((HANDLE)ProcessId, &EProcess);
-    }
 
-    if (NT_SUCCESS(Status) && APIsValidProcess(EProcess))
+    do
     {
+        if (0 == ProcessId)
+        {
+            Status = STATUS_INVALID_PARAMETER;
+            break;
+        }
+        if (4 == ProcessId)
+        {
+            EProcess = g_DriverInfo.SystemEProcess;
+            Status = STATUS_SUCCESS;
+        }
+        else
+        {
+            Status = PsLookupProcessByProcessId((HANDLE)ProcessId, &EProcess);
+        }
+        if (!NT_SUCCESS(Status) || !APIsValidProcess(EProcess))
+        {
+            break;
+        }
+
         Status = APEnumProcessThreadByIteratePspCidTable(EProcess, pti, ThreadCount);
         if (NT_SUCCESS(Status))
         {
@@ -472,9 +393,9 @@ APEnumProcessThread(IN UINT32 ProcessId, OUT PVOID OutputBuffer, IN UINT32 Outpu
                 }
             }
         }
-    }
+    } while (FALSE);
 
-    if (EProcess && EProcess != g_DriverInfo.SystemEProcess)
+    if (NULL != EProcess && EProcess != g_DriverInfo.SystemEProcess)
     {
         ObDereferenceObject(EProcess);
     }
@@ -483,14 +404,7 @@ APEnumProcessThread(IN UINT32 ProcessId, OUT PVOID OutputBuffer, IN UINT32 Outpu
 }
 
 
-/************************************************************************
-*  Name : APGetPspTerminateThreadByPointerAddress
-*  Param: void
-*  Ret  : UINT_PTR
-*  通过PsTerminateSystemThread获得PspTerminateThreadByPointer函数地址
-************************************************************************/
-UINT_PTR
-APGetPspTerminateThreadByPointerAddress()
+UINT_PTR APGetPspTerminateThreadByPointerAddress()
 {
     PUINT8    StartSearchAddress = (PUINT8)PsTerminateSystemThread;
     PUINT8    EndSearchAddress = StartSearchAddress + 0x500;
@@ -541,53 +455,41 @@ APGetPspTerminateThreadByPointerAddress()
 
 
 
-/************************************************************************
-*  Name : APTerminateProcessByIterateThreadListHead
-*  Param: EProcess
-*  Ret  : NTSTATUS
-*  遍历进程体的所有线程，通过PspTerminateThreadByPointer结束线程，从而结束进程
-************************************************************************/
-NTSTATUS
-APTerminateProcessByIterateThreadListHead(IN PEPROCESS EProcess)
+NTSTATUS APTerminateProcessByIterateThreadListHead(IN PEPROCESS EProcess)
 {
     NTSTATUS    Status = STATUS_UNSUCCESSFUL;
-
+    PLIST_ENTRY ThreadListHead = NULL;
+    UINT_PTR    MaxCount = 0;
+    PLIST_ENTRY ThreadListEntry = NULL;
+    PETHREAD    EThread = NULL;
     pfnPspTerminateThreadByPointer PspTerminateThreadByPointer = (pfnPspTerminateThreadByPointer)APGetPspTerminateThreadByPointerAddress();
     if (PspTerminateThreadByPointer && MmIsAddressValid((PVOID)PspTerminateThreadByPointer))
     {
-        PLIST_ENTRY ThreadListHead = (PLIST_ENTRY)((PUINT8)EProcess + g_DriverInfo.DynamicData.ThreadListHead_KPROCESS);
+        ThreadListHead = (PLIST_ENTRY)((PUINT8)EProcess + g_DriverInfo.DynamicData.ThreadListHead_KPROCESS);
 
         if (ThreadListHead && MmIsAddressValid(ThreadListHead) && MmIsAddressValid(ThreadListHead->Flink))
         {
-        //    KIRQL       OldIrql = KeRaiseIrqlToDpcLevel();
-            UINT_PTR    MaxCount = PAGE_SIZE * 2;
-            PLIST_ENTRY ThreadListEntry;
-            for ( ThreadListEntry = ThreadListHead->Flink;
+            MaxCount = PAGE_SIZE * 2;
+            for (ThreadListEntry = ThreadListHead->Flink;
                 MmIsAddressValid(ThreadListEntry) && ThreadListEntry != ThreadListHead && MaxCount--;
                 ThreadListEntry = ThreadListEntry->Flink)
             {
-                PETHREAD EThread = (PETHREAD)((PUINT8)ThreadListEntry - g_DriverInfo.DynamicData.ThreadListEntry_KTHREAD);
+                EThread = (PETHREAD)((PUINT8)ThreadListEntry - g_DriverInfo.DynamicData.ThreadListEntry_KTHREAD);
                 Status = PspTerminateThreadByPointer(EThread, 0, TRUE);   // 结束线程
             }
-
-        //    KeLowerIrql(OldIrql);
         }
 
         ThreadListHead = (PLIST_ENTRY)((PUINT8)EProcess + g_DriverInfo.DynamicData.ThreadListHead_EPROCESS);
         if (ThreadListHead && MmIsAddressValid(ThreadListHead) && MmIsAddressValid(ThreadListHead->Flink))
         {
-        //    KIRQL       OldIrql = KeRaiseIrqlToDpcLevel();
-            UINT_PTR    MaxCount = PAGE_SIZE * 2;
-            PLIST_ENTRY ThreadListEntry;
-            for ( ThreadListEntry = ThreadListHead->Flink;
+            MaxCount = PAGE_SIZE * 2;
+            for (ThreadListEntry = ThreadListHead->Flink;
                 MmIsAddressValid(ThreadListEntry) && ThreadListEntry != ThreadListHead && MaxCount--;
                 ThreadListEntry = ThreadListEntry->Flink)
             {
-                PETHREAD EThread = (PETHREAD)((PUINT8)ThreadListEntry - g_DriverInfo.DynamicData.ThreadListEntry_KTHREAD);
+                EThread = (PETHREAD)((PUINT8)ThreadListEntry - g_DriverInfo.DynamicData.ThreadListEntry_KTHREAD);
                 Status = PspTerminateThreadByPointer(EThread, 0, TRUE);   // 结束线程
             }
-
-        //    KeLowerIrql(OldIrql);
         }
     }
     else

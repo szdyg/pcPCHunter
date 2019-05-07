@@ -17,8 +17,25 @@ typedef struct _GOLBAL_INFO
     PEPROCESS               SystemEProcess;         // 保存全局系统进程
     PLDR_DATA_TABLE_ENTRY   PsLoadedModuleList;     // 加载模块List
 }GOLBAL_INFO,*PGOLBAL_INFO;
+
+
+//************************************
+// 函数名:   APInitializeDynamicData
+// 权限：    public 
+// 返回值:   NTSTATUS
+// 参数：    IN OUT PDYNAMIC_DATA DynamicData
+// 说明：    初始化信息
+//************************************
 NTSTATUS APInitializeDynamicData(IN OUT PDYNAMIC_DATA DynamicData);
 
+//************************************
+// 函数名:   APDefaultPassThrough
+// 权限：    public 
+// 返回值:   NTSTATUS
+// 参数：    IN PDEVICE_OBJECT DeviceObject
+// 参数：    IN PIRP Irp
+// 说明：    不关心的Irp直接完成
+//************************************
 NTSTATUS APDefaultPassThrough(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp);
 
 //************************************

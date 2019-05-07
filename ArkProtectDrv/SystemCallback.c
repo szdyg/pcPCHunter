@@ -43,27 +43,7 @@ UINT_PTR APGetPspCreateProcessNotifyRoutineAddress()
 
     if (PsSetCreateProcessNotifyRoutine)
     {
-#ifdef _WIN64
         PspSetCreateProcessNotifyRoutine = (*(INT32*)(PsSetCreateProcessNotifyRoutine + 4) + PsSetCreateProcessNotifyRoutine + 3);
-#else
-        StartSearchAddress = (PUINT8)PsSetCreateProcessNotifyRoutine;
-        EndSearchAddress = StartSearchAddress + 0x500;
-
-        for (i = StartSearchAddress; i < EndSearchAddress; i++)
-        {
-            if (MmIsAddressValid(i) && MmIsAddressValid(i + 5))
-            {
-                v1 = *i;
-                v2 = *(i + 5);
-                if (v1 == 0xe8 && v2 == 0x5d)        //  call offset pop     ebp
-                {
-                    RtlCopyMemory(&iOffset, i + 1, 4);
-                    PspSetCreateProcessNotifyRoutine = (UINT_PTR)(iOffset + (UINT32)i + 5);;
-                    break;
-                }
-            }
-        }
-#endif // _WIN64
     }
 
     // 在 PsSetCreateThreadNotifyRoutine 中使用了 PspCreateThreadNotifyRoutine 硬编码加偏移获得
@@ -97,20 +77,12 @@ UINT_PTR APGetPspCreateProcessNotifyRoutineAddress()
                 v1 = *i;
                 v2 = *(i + 1);
                 v3 = *(i + 2);
-#ifdef _WIN64
                 if (v1 == 0x4c && v2 == 0x8d && v3 == 0x35)        // 硬编码  lea r14
                 {
                     RtlCopyMemory(&iOffset, i + 3, 4);
                     PspCreateProcessNotifyRoutine = (UINT_PTR)(iOffset + (UINT64)i + 7);
                     break;
                 }
-#else
-                if (v1 == 0xc7 && v2 == 0x45 && v3 == 0x0c)        // mov     dword ptr [ebp+0Ch]
-                {
-                    RtlCopyMemory(&PspCreateProcessNotifyRoutine, i + 3, 4);
-                    break;
-                }
-#endif // _WIN64
 
             }
         }
@@ -145,11 +117,7 @@ BOOLEAN APGetCreateProcessCallbackNotify( PSYS_CALLBACK_INFORMATION sci,  UINT32
                 if (NotifyItem > g_DriverInfo.DynamicData.MinKernelSpaceAddress &&
                     MmIsAddressValid((PVOID)(NotifyItem & ~7)))
                 {
-#ifdef _WIN64
                     CallbackAddress = *(PUINT_PTR)(NotifyItem & ~7);
-#else
-                    CallbackAddress = *(PUINT_PTR)((NotifyItem & ~7) + sizeof(UINT32));
-#endif // _WIN64
                     if (CallbackAddress && MmIsAddressValid((PVOID)CallbackAddress))
                     {
                         if (CallbackCount > sci->NumberOfCallbacks)
@@ -169,12 +137,6 @@ BOOLEAN APGetCreateProcessCallbackNotify( PSYS_CALLBACK_INFORMATION sci,  UINT32
 }
 
 
-/************************************************************************
-*  Name : APGetPspCreateThreadNotifyRoutineAddress
-*  Param: void
-*  Ret  : UINT_PTR
-*  获得PspCreateThreadNotifyRoutine
-************************************************************************/
 UINT_PTR APGetPspCreateThreadNotifyRoutineAddress()
 {
     // 在 PsSetCreateThreadNotifyRoutine 中使用了 PspCreateThreadNotifyRoutine 硬编码加偏移获得
@@ -212,7 +174,6 @@ UINT_PTR APGetPspCreateThreadNotifyRoutineAddress()
 
         for (i = StartSearchAddress; i < EndSearchAddress; i++)
         {
-#ifdef _WIN64
             if (MmIsAddressValid(i) && MmIsAddressValid(i + 1) && MmIsAddressValid(i + 2))
             {
                 v1 = *i;
@@ -225,19 +186,6 @@ UINT_PTR APGetPspCreateThreadNotifyRoutineAddress()
                     break;
                 }
             }
-#else
-            if (MmIsAddressValid(i) && MmIsAddressValid(i + 1) && MmIsAddressValid(i + 6))
-            {
-                v1 = *i;
-                v2 = *(i + 1);
-                v3 = *(i + 6);
-                if (v1 == 0x56 && v2 == 0xbe && v3 == 0x6a)        // 硬编码  lea rcx
-                {
-                    RtlCopyMemory(&PspCreateThreadNotifyRoutine, i + 2, 4);
-                    break;
-                }
-            }
-#endif // _WIN64
         }
     }
     return PspCreateThreadNotifyRoutine;
@@ -328,7 +276,6 @@ UINT_PTR APGetPspLoadImageNotifyRoutineAddress()
 
         for (i = StartSearchAddress; i < EndSearchAddress; i++)
         {
-#ifdef _WIN64
             if (MmIsAddressValid(i) && MmIsAddressValid(i + 1) && MmIsAddressValid(i + 2))
             {
                 v1 = *i;
@@ -341,20 +288,6 @@ UINT_PTR APGetPspLoadImageNotifyRoutineAddress()
                     break;
                 }
             }
-#else
-            if (MmIsAddressValid(i) && MmIsAddressValid(i + 5) && MmIsAddressValid(i + 6))
-            {
-                v1 = *i;
-                v2 = *(i + 5);
-                v3 = *(i + 6);
-                if (v1 == 0xbe && v2 == 0x6a && v3 == 0x00)        // 硬编码  lea rcx
-                {
-                    RtlCopyMemory(&PspLoadImageNotifyRoutine, i + 1, 4);
-                    break;
-                }
-            }
-#endif // _WIN64
-
         }
     }
     return PspLoadImageNotifyRoutine;
@@ -384,15 +317,9 @@ BOOLEAN APGetLoadImageCallbackNotify( PSYS_CALLBACK_INFORMATION sci,  UINT32 Cal
             {
                 NotifyItem = *(PUINT_PTR)(PspLoadImageNotifyRoutine + i * sizeof(UINT_PTR));
 
-                if (NotifyItem > g_DriverInfo.DynamicData.MinKernelSpaceAddress &&
-                    MmIsAddressValid((PVOID)(NotifyItem & ~7)))
+                if (NotifyItem > g_DriverInfo.DynamicData.MinKernelSpaceAddress && MmIsAddressValid((PVOID)(NotifyItem & ~7)))
                 {
-#ifdef _WIN64
                     CallbackAddress = *(PUINT_PTR)(NotifyItem & ~7);
-#else
-                    CallbackAddress = *(PUINT_PTR)((NotifyItem & ~7) + sizeof(UINT32));
-#endif // _WIN64
-
                     if (CallbackAddress && MmIsAddressValid((PVOID)CallbackAddress))
                     {
                         if (CallbackCount > sci->NumberOfCallbacks)
@@ -449,7 +376,6 @@ UINT_PTR APGetCallbackListHeadAddress()
 
         for (i = StartSearchAddress; i < EndSearchAddress; i++)
         {
-#ifdef _WIN64
             if (MmIsAddressValid(i) && MmIsAddressValid(i + 1) && MmIsAddressValid(i + 2))
             {
                 v1 = *i;
@@ -473,19 +399,6 @@ UINT_PTR APGetCallbackListHeadAddress()
                     }
                 }
             }
-#else
-            if (MmIsAddressValid(i) && MmIsAddressValid(i + 5) && MmIsAddressValid(i + 6))
-            {
-                v1 = *i;
-                v2 = *(i + 5);
-                v3 = *(i + 6);
-                if (v1 == 0xbf && v2 == 0x8b && v3 == 0xc7)        // mov     edi ...
-                {
-                    RtlCopyMemory(&CallbackListHead, i + 1, 4);
-                    break;
-                }
-            }
-#endif // _WIN64
         }
     }
 
@@ -592,7 +505,6 @@ UINT_PTR APGetKeBugCheckCallbackListHeadAddress()
 
         for (i = StartSearchAddress; i < EndSearchAddress; i++)
         {
-#ifdef _WIN64
             if (MmIsAddressValid(i) && MmIsAddressValid(i + 1) && MmIsAddressValid(i + 2))
             {
                 v1 = *i;
@@ -615,19 +527,6 @@ UINT_PTR APGetKeBugCheckCallbackListHeadAddress()
                     }
                 }
             }
-#else
-            if (MmIsAddressValid(i) && MmIsAddressValid(i + 1) && MmIsAddressValid(i + 6))
-            {
-                v1 = *i;
-                v2 = *(i + 1);
-                v3 = *(i + 6);
-                if (v1 == 0x8b && v2 == 0x0d && v3 == 0x89)        // 硬编码  lea rcx
-                {
-                    RtlCopyMemory(&KeBugCheckCallbackListHead, i + 2, 4);
-                    break;
-                }
-            }
-#endif // _WIN64
 
         }
     }
@@ -733,7 +632,6 @@ UINT_PTR APGetKeBugCheckReasonCallbackListHeadAddress()
 
         for (i = StartSearchAddress; i < EndSearchAddress; i++)
         {
-#ifdef _WIN64
             if (MmIsAddressValid(i) && MmIsAddressValid(i + 1) && MmIsAddressValid(i + 2))
             {
                 v1 = *i;
@@ -756,19 +654,6 @@ UINT_PTR APGetKeBugCheckReasonCallbackListHeadAddress()
                     }
                 }
             }
-#else
-            if (MmIsAddressValid(i) && MmIsAddressValid(i + 1) && MmIsAddressValid(i + 6))
-            {
-                v1 = *i;
-                v2 = *(i + 1);
-                v3 = *(i + 6);
-                if (v1 == 0x8b && v2 == 0x0d && v3 == 0x89)
-                {
-                    RtlCopyMemory(&KeBugCheckReasonCallbackListHead, i + 2, 4);
-                    break;
-                }
-            }
-#endif // _WIN64
 
         }
     }
@@ -892,7 +777,6 @@ UINT_PTR APGetIopNotifyShutdownQueueHeadAddress()
 
         for (i = StartSearchAddress; i < EndSearchAddress; i++)
         {
-#ifdef _WIN64
             if (MmIsAddressValid(i) && MmIsAddressValid(i + 1) && MmIsAddressValid(i + 2))
             {
                 v1 = *i;
@@ -905,18 +789,6 @@ UINT_PTR APGetIopNotifyShutdownQueueHeadAddress()
                     break;
                 }
             }
-#else
-            if (MmIsAddressValid(i) && MmIsAddressValid(i + 5))
-            {
-                v1 = *i;
-                v2 = *(i + 5);
-                if (v1 == 0xbf && v2 == 0xe8)
-                {
-                    RtlCopyMemory(&IopNotifyShutdownQueueHead, i + 1, 4);
-                    break;
-                }
-            }
-#endif // _WIN64
         }
     }
     return IopNotifyShutdownQueueHead;
@@ -998,7 +870,6 @@ UINT_PTR APGetIopNotifyLastChanceShutdownQueueHeadAddress()
 
         for (i = StartSearchAddress; i < EndSearchAddress; i++)
         {
-#ifdef _WIN64
             if (MmIsAddressValid(i) && MmIsAddressValid(i + 1) && MmIsAddressValid(i + 2))
             {
                 v1 = *i;
@@ -1011,19 +882,6 @@ UINT_PTR APGetIopNotifyLastChanceShutdownQueueHeadAddress()
                     break;
                 }
             }
-#else
-            if (MmIsAddressValid(i) && MmIsAddressValid(i + 5) && MmIsAddressValid(i + 6))
-            {
-                v1 = *i;
-                v2 = *(i + 5);
-                v3 = *(i + 6);
-                if (v1 == 0xbf && v2 == 0x89 && v3 == 0x5e)
-                {
-                    RtlCopyMemory(&IopNotifyLastChanceShutdownQueueHead, i + 1, 4);
-                    break;
-                }
-            }
-#endif // _WIN64
         }
     }
     return IopNotifyLastChanceShutdownQueueHead;

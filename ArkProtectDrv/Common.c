@@ -1,19 +1,9 @@
-﻿#include "NtStructs.h"
-#include "Common.h"
+﻿#include "Common.h"
+#include "Imports.h"
+#include "NtStructs.h"
 
+COMMON_INFO g_CommonInfo = { 0 };
 
-ULONG_PTR  ObjectTableOffsetOf_EPROCESS = 0;
-ULONG_PTR  PreviousModeOffsetOf_KTHREAD = 0;
-ULONG_PTR  IndexOffsetOfFunction = 0;
-ULONG_PTR  SSDTDescriptor = 0;
-
-ULONG_PTR  HighUserAddress = 0;
-
-WIN_VERSION WinVersion = WINDOWS_UNKNOW;
-ULONG_PTR LdrInPebOffset =  0;
-ULONG_PTR ModListInLdrOffset = 0;
-ULONG_PTR  ObjectHeaderSize = 0;
-ULONG_PTR ObjectTypeOffsetOf_Object_Header =0;
 
 
 
@@ -111,36 +101,22 @@ PVOID GetFunctionAddressByName(WCHAR *wzFunction)
 
 VOID InitGlobalVariable()
 {
-    WinVersion = GetWindowsVersion();
-    switch(WinVersion)
+    g_CommonInfo.WinVersion = GetWindowsVersion();
+    switch(g_CommonInfo.WinVersion)
     {
-#ifdef _WIN32
-    case WINDOWS_XP:
+        case WINDOWS_7_7600:
+        case WINDOWS_7_7601:
         {
-            ObjectHeaderSize = 0x18;
-            ObjectTypeOffsetOf_Object_Header = 0x8;
-            LdrInPebOffset  = 0x00c;
-            ModListInLdrOffset  = 0x00c;
-            ObjectHeaderSize  = 0x18;
-            ObjectTableOffsetOf_EPROCESS = 0x0c4;
-            PreviousModeOffsetOf_KTHREAD = 0x140;
-            HighUserAddress = 0x80000000;
+            g_CommonInfo.LdrInPebOffset = 0x018;
+            g_CommonInfo.ModListInLdrOffset = 0x010;
+            g_CommonInfo.ObjectTableOffsetOf_EPROCESS = 0x200;
+            g_CommonInfo.PreviousModeOffsetOf_KTHREAD = 0x1f6;
+            g_CommonInfo.HighUserAddress = 0x80000000000;
+        }
+        break;
 
-            break;
-        }
-#else
-    case WINDOWS_7_7601:
-        {
-            LdrInPebOffset = 0x018;
-            ModListInLdrOffset = 0x010;
-            ObjectTableOffsetOf_EPROCESS = 0x200;
-            PreviousModeOffsetOf_KTHREAD = 0x1f6;
-            HighUserAddress   = 0x80000000000;
-            break;
-        }
-#endif
-    default:
-        return;
+        default:
+            break;;
     }
 }
 
@@ -157,9 +133,7 @@ BOOLEAN IsRealProcess(PEPROCESS EProcess)
     if (ProcessType && EProcess && MmIsAddressValid((PVOID)(EProcess)))
     { 
         ObjectType = KeGetObjectType((PVOID)EProcess);   //*PsProcessType  
-        if (ObjectType && 
-            ProcessType == ObjectType &&
-            !IsProcessDie(EProcess))    
+        if (ObjectType && ProcessType == ObjectType && !IsProcessDie(EProcess))
         {
             bRet = TRUE; 
         }
@@ -180,25 +154,20 @@ ULONG_PTR KeGetObjectType(PVOID Object)
         return 0;
     }
 
-    if (WinVersion==WINDOWS_XP)
+    if (g_CommonInfo.WinVersion == WINDOWS_XP)
     {
         ULONG SizeOfObjectHeader = 0, ObjectTypeOffset = 0;
         ULONG_PTR ObjectTypeAddress = 0;
-
-        ObjectTypeAddress = (ULONG_PTR)Object - ObjectHeaderSize + ObjectTypeOffsetOf_Object_Header;
-
+        ObjectTypeAddress = (ULONG_PTR)Object - g_CommonInfo.ObjectHeaderSize + g_CommonInfo.ObjectTypeOffsetOf_Object_Header;
         if (MmIsAddressValid((PVOID)ObjectTypeAddress))
-        { 
+        {
             ObjectType = *(ULONG_PTR*)ObjectTypeAddress;
         }
     }
-    else 
+    else
     {
         //高版本使用函数
-
         ObGetObjectType = (pfnObGetObjectType)GetFunctionAddressByName(L"ObGetObjectType");
-
-
         if (ObGetObjectType)
         {
             ObjectType = ObGetObjectType(Object);
@@ -211,25 +180,26 @@ ULONG_PTR KeGetObjectType(PVOID Object)
 BOOLEAN IsProcessDie(PEPROCESS EProcess)
 {
     BOOLEAN bDie = FALSE;
-
-    if (MmIsAddressValid &&
-        EProcess && 
-        MmIsAddressValid(EProcess) &&
-        MmIsAddressValid((PVOID)((ULONG_PTR)EProcess + ObjectTableOffsetOf_EPROCESS)))
+    do
     {
-        PVOID ObjectTable = *(PVOID*)((ULONG_PTR)EProcess + ObjectTableOffsetOf_EPROCESS );
+        if (NULL == EProcess)
+            break;
 
-        if (!ObjectTable||!MmIsAddressValid(ObjectTable) )
+        if (MmIsAddressValid(EProcess) && MmIsAddressValid((PVOID)((ULONG_PTR)EProcess + g_CommonInfo.ObjectTableOffsetOf_EPROCESS)))
         {
-            DbgPrint("Process is Die\r\n");
+            PVOID ObjectTable = *(PVOID*)((ULONG_PTR)EProcess + g_CommonInfo.ObjectTableOffsetOf_EPROCESS);
+            if (!ObjectTable || !MmIsAddressValid(ObjectTable))
+            {
+                DbgPrint("Process is Die\r\n");
+                bDie = TRUE;
+            }
+        }
+        else
+        {
+            DbgPrint("Process is Die2\r\n");
             bDie = TRUE;
         }
-    }
-    else
-    {
-        DbgPrint("Process is Die2\r\n");
-        bDie = TRUE;
-    }
+    } while (FALSE);
     return bDie;
 }
 
@@ -239,153 +209,170 @@ BOOLEAN IsProcessDie(PEPROCESS EProcess)
 CHAR ChangePreMode(PETHREAD EThread)
 {
 
-    CHAR PreMode = *(PCHAR)((ULONG_PTR)EThread + PreviousModeOffsetOf_KTHREAD);
-    *(PCHAR)((ULONG_PTR)EThread + PreviousModeOffsetOf_KTHREAD) = KernelMode;
+    CHAR PreMode = *(PCHAR)((ULONG_PTR)EThread + g_CommonInfo.PreviousModeOffsetOf_KTHREAD);
+    *(PCHAR)((ULONG_PTR)EThread + g_CommonInfo.PreviousModeOffsetOf_KTHREAD) = KernelMode;
     return PreMode;
 }
 
 VOID RecoverPreMode(PETHREAD EThread, CHAR PreMode)
 {
-    *(PCHAR)((ULONG_PTR)EThread + PreviousModeOffsetOf_KTHREAD) = PreMode;
+    *(PCHAR)((ULONG_PTR)EThread + g_CommonInfo.PreviousModeOffsetOf_KTHREAD) = PreMode;
 }
 
 
 
-BOOLEAN NtPathToDosPathW(WCHAR* wzFullNtPath,WCHAR* wzFullDosPath)
+BOOLEAN NtPathToDosPathW(PWCHAR wzFullNtPath,PWCHAR wzFullDosPath)
 {
     WCHAR wzDosDevice[4] = {0};
     WCHAR wzNtDevice[64] = {0};
     WCHAR *RetStr = NULL;
     size_t NtDeviceLen = 0;
-    short i = 0;
-    if(!wzFullNtPath||!wzFullDosPath)
+    WCHAR wLetter = L"A";
+    BOOLEAN bRet = FALSE;
+    do 
     {
-        return FALSE;
-    }
-    for(i=65;i<26+65;i++)
-    {
-        wzDosDevice[0] = i;
-        wzDosDevice[1] = L':';
-        if(NtQueryDosDevice(wzDosDevice,wzNtDevice,64))
+        if (NULL == wzFullNtPath || NULL == wzFullDosPath)
+            break;
+        for (; wLetter < L"Z"; wLetter++)
         {
-            if(wzNtDevice)
+            wzDosDevice[0] = wLetter;
+            wzDosDevice[1] = L':';
+            if (NtQueryDosDevice(wzDosDevice, wzNtDevice, 64))
             {
-                NtDeviceLen = wcslen(wzNtDevice);
-                if(!_wcsnicmp(wzNtDevice,wzFullNtPath,NtDeviceLen))
+                if (wzNtDevice)
                 {
-                    wcscpy(wzFullDosPath,wzDosDevice);
-                    wcscat(wzFullDosPath,wzFullNtPath+NtDeviceLen);
-                    return TRUE;
+                    NtDeviceLen = wcslen(wzNtDevice);
+                    if (!_wcsnicmp(wzNtDevice, wzFullNtPath, NtDeviceLen))
+                    {
+                        wcscpy(wzFullDosPath, wzDosDevice);
+                        wcscat(wzFullDosPath, wzFullNtPath + NtDeviceLen);
+                        bRet = TRUE;
+                    }
                 }
             }
         }
-    }
+    } while (FALSE);
 
     return FALSE;
 }
 
-ULONG
-    NtQueryDosDevice(WCHAR* wzDosDevice,WCHAR* wzNtDevice,
-    ULONG ucchMax)
+ULONG NtQueryDosDevice(PWCHAR wzDosDevice, PWCHAR wzNtDevice, ULONG ucchMax)
 {
-    NTSTATUS Status;
+    NTSTATUS status;
     POBJECT_DIRECTORY_INFORMATION ObjectDirectoryInfor;
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING uniString;
-    HANDLE hDirectory;
-    HANDLE hDevice;
+    HANDLE hDirectory = NULL;
+    HANDLE hDevice = NULL;
     ULONG  ulReturnLength;
     ULONG  ulNameLength;
-    ULONG  ulLength;
-    ULONG       Context;
+    ULONG  ulLength = 0;
+    ULONG  Context;
     BOOLEAN     bRestartScan;
-    WCHAR*      Ptr = NULL;
-    UCHAR       szBuffer[512] = {0};
-    RtlInitUnicodeString (&uniString,L"\\??");
-    InitializeObjectAttributes(&oa,
-        &uniString,
-        OBJ_CASE_INSENSITIVE,
-        NULL,
-        NULL); 
-    Status = ZwOpenDirectoryObject(&hDirectory,DIRECTORY_QUERY,&oa);
-    if(!NT_SUCCESS(Status))
+    PWCHAR      Ptr = NULL;
+    PUCHAR      pData = NULL;
+    do
     {
-        return 0;
-    }
-    ulLength = 0;
-    if (wzDosDevice != NULL)
-    {
-        RtlInitUnicodeString (&uniString,(PWSTR)wzDosDevice);
-        InitializeObjectAttributes(&oa,&uniString,OBJ_CASE_INSENSITIVE,hDirectory,NULL);
-        Status = ZwOpenSymbolicLinkObject(&hDevice,GENERIC_READ,&oa);
-        if(!NT_SUCCESS (Status))
+        pData = ExAllocatePool(NonPagedPool, 1024);
+        if (NULL == pData)
         {
-            ZwClose(hDirectory);
-            return 0;
+            break;
         }
-        uniString.Length = 0;
-        uniString.MaximumLength = (USHORT)ucchMax * sizeof(WCHAR);
-        uniString.Buffer = wzNtDevice;
-        ulReturnLength = 0;
-        Status = ZwQuerySymbolicLinkObject (hDevice,&uniString,&ulReturnLength);
-        ZwClose(hDevice);
-        ZwClose(hDirectory);
-        if (!NT_SUCCESS (Status))
+        if (wzDosDevice != NULL)
         {
-            return 0;
-        }
-        ulLength = uniString.Length / sizeof(WCHAR);
-        if (ulLength < ucchMax)
-        {
-            wzNtDevice[ulLength] = UNICODE_NULL;
-            ulLength++;
+            RtlInitUnicodeString(&uniString, L"\\??");
+            InitializeObjectAttributes(&oa, &uniString, OBJ_CASE_INSENSITIVE, NULL, NULL);
+            status = ZwOpenDirectoryObject(&hDirectory, DIRECTORY_QUERY, &oa);
+            if (!NT_SUCCESS(status))
+            {
+                break;
+            }
+            RtlInitUnicodeString(&uniString, wzDosDevice);
+            InitializeObjectAttributes(&oa, &uniString, OBJ_CASE_INSENSITIVE, hDirectory, NULL);
+            status = ZwOpenSymbolicLinkObject(&hDevice, GENERIC_READ, &oa);
+            if (!NT_SUCCESS(status))
+            {
+                break;
+            }
+            uniString.Length = 0;
+            uniString.MaximumLength = (USHORT)ucchMax * sizeof(WCHAR);
+            uniString.Buffer = wzNtDevice;
+            ulReturnLength = 0;
+            status = ZwQuerySymbolicLinkObject(hDevice, &uniString, &ulReturnLength);
+            if (!NT_SUCCESS(status))
+            {
+                break;
+            }
+            ulLength = uniString.Length / sizeof(WCHAR);
+            if (ulLength < ucchMax)
+            {
+                wzNtDevice[ulLength] = UNICODE_NULL;
+                ulLength++;
+            }
+            else
+            {
+                break;
+            }
         }
         else
         {
-            return 0;
-        }
-    }
-    else
-    {
-        bRestartScan = TRUE;
-        Context = 0;
-        Ptr = wzNtDevice;
-        ObjectDirectoryInfor = (POBJECT_DIRECTORY_INFORMATION)szBuffer;
-        while (TRUE)
-        {
-            Status = ZwQueryDirectoryObject(hDirectory,szBuffer,sizeof (szBuffer),TRUE,bRestartScan,&Context,&ulReturnLength);
-            if(!NT_SUCCESS(Status))
+            bRestartScan = TRUE;
+            Context = 0;
+            Ptr = wzNtDevice;
+            ObjectDirectoryInfor = (POBJECT_DIRECTORY_INFORMATION)pData;
+            while (TRUE)
             {
-                if (Status == STATUS_NO_MORE_ENTRIES)
+                status = ZwQueryDirectoryObject(hDirectory, pData, 1024, TRUE, bRestartScan, &Context, &ulReturnLength);
+                if (!NT_SUCCESS(status))
                 {
-                    *Ptr = UNICODE_NULL;
-                    ulLength++;
-                    Status = STATUS_SUCCESS;
-                }
-                else
-                {
-                    ulLength = 0;
-                }
-                break;
-            }
-            if (!wcscmp (ObjectDirectoryInfor->TypeName.Buffer, L"SymbolicLink"))
-            {
-                ulNameLength = ObjectDirectoryInfor->Name.Length / sizeof(WCHAR);
-                if (ulLength + ulNameLength + 1 >= ucchMax)
-                {
-                    ulLength = 0;
+                    if (status == STATUS_NO_MORE_ENTRIES)
+                    {
+                        *Ptr = UNICODE_NULL;
+                        ulLength++;
+                        status = STATUS_SUCCESS;
+                    }
+                    else
+                    {
+                        ulLength = 0;
+                    }
                     break;
                 }
-                memcpy(Ptr,ObjectDirectoryInfor->Name.Buffer,ObjectDirectoryInfor->Name.Length);
-                Ptr += ulNameLength;
-                ulLength += ulNameLength;
-                *Ptr = UNICODE_NULL;
-                Ptr++;
-                ulLength++;
+                if (!wcscmp(ObjectDirectoryInfor->TypeName.Buffer, L"SymbolicLink"))
+                {
+                    ulNameLength = ObjectDirectoryInfor->Name.Length / sizeof(WCHAR);
+                    if (ulLength + ulNameLength + 1 >= ucchMax)
+                    {
+                        ulLength = 0;
+                        break;
+                    }
+                    memcpy(Ptr, ObjectDirectoryInfor->Name.Buffer, ObjectDirectoryInfor->Name.Length);
+                    Ptr += ulNameLength;
+                    ulLength += ulNameLength;
+                    *Ptr = UNICODE_NULL;
+                    Ptr++;
+                    ulLength++;
+                }
+                bRestartScan = FALSE;
             }
-            bRestartScan = FALSE;
         }
+
+    } while (FALSE);
+
+    if (hDirectory != NULL)
+    {
         ZwClose(hDirectory);
+        hDirectory = NULL;
     }
+    if (hDevice != NULL)
+    {
+        ZwClose(hDevice);
+        hDevice = NULL;
+    }
+    if (pData != NULL)
+    {
+        ExFreePool(pData);
+        pData = NULL;
+    }
+
     return ulLength;
 }

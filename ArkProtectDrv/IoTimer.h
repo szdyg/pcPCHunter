@@ -1,6 +1,4 @@
-#ifndef CXX_IoTimer_H
-#define CXX_IoTimer_H
-
+#pragma once
 #include <ntifs.h>
 #include "Private.h"
 #include "NtStructs.h"
@@ -23,15 +21,26 @@ typedef struct _IO_TIMER_INFORMATION
 
 
 
-UINT_PTR 
-APGetIopTimerQueueHead();
+UINT_PTR APGetIopTimerQueueHead();
 
-NTSTATUS
-APEnumIoTimerByIterateIopTimerQueueHead(OUT PIO_TIMER_INFORMATION iti, IN UINT32 IoTimerCount);
+//************************************
+// 函数名:   APEnumIoTimerByIterateIopTimerQueueHead
+// 权限：    public 
+// 返回值:   NTSTATUS
+// 参数：    OUT PIO_TIMER_INFORMATION iti              缓存地址
+// 参数：    IN UINT32 IoTimerCount                     可以缓存几个对象
+// 说明：    遍历IopTimerQueueHead枚举IoTimer对象信息
+//************************************
+NTSTATUS APEnumIoTimerByIterateIopTimerQueueHead(OUT PIO_TIMER_INFORMATION iti, IN UINT32 IoTimerCount);
 
-NTSTATUS
-APEnumIoTimer(OUT PVOID OutputBuffer, IN UINT32 OutputLength);
-
-#endif // !CXX_IoTimer_H
+//************************************
+// 函数名:   APEnumIoTimer
+// 权限：    public 
+// 返回值:   NTSTATUS
+// 参数：    OUT PVOID OutputBuffer              缓存地址
+// 参数：    IN UINT32 OutputLength              缓存长度
+// 说明：    枚举IoTimer对象
+//************************************
+NTSTATUS APEnumIoTimer(OUT PVOID OutputBuffer, IN UINT32 OutputLength);
 
 

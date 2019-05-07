@@ -1,4 +1,5 @@
 #pragma once
+#include "NtStructs.h"
 #include <ntifs.h>
 
 
@@ -53,3 +54,12 @@ NTKERNELAPI NTSTATUS ObReferenceObjectByName(
     __out PVOID *Object
 );
 
+NTSYSAPI NTSTATUS NTAPI ZwQueryDirectoryObject(
+    __in HANDLE DirectoryHandle,
+    __out_bcount_opt(Length) PVOID Buffer,
+    __in ULONG Length,
+    __in BOOLEAN ReturnSingleEntry,
+    __in BOOLEAN RestartScan,
+    __inout PULONG Context,
+    __out_opt PULONG ReturnLength
+);
