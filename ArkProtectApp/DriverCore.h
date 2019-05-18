@@ -45,35 +45,27 @@ namespace ArkProtect
         ~CDriverCore();
 
         void InitializeDriverList(CListCtrl * DriverList);
-
         void PerfectDriverInfo(PDRIVER_ENTRY_INFORMATION DriverEntry);
-
         BOOL EnumDriverInfo();
-
         void InsertDriverInfoList(CListCtrl * ListCtrl);
-
         void QueryDriverInfo(CListCtrl * ListCtrl);
-
         BOOL UnloadDriver(UINT_PTR DriverObject);
-
         static DWORD CALLBACK QueryDriverInfoCallback(LPARAM lParam);
-
         static DWORD CALLBACK UnloadDriverCallback(LPARAM lParam);
-
         CString GetDriverPathByAddress(UINT_PTR Address);
 
-
-        //
         // 返回变量Interface
-        //
-        inline std::vector<DRIVER_ENTRY_INFORMATION>& DriverEntryVector() { return m_DriverEntryVector; }
+        inline std::vector<DRIVER_ENTRY_INFORMATION>& DriverEntryVector()
+        {
+            return m_DriverEntryVector;
+        }
 
 
     private:
-
         UINT32        m_DriverCount = 0;
         int           m_iColumnCount = 9;        // 进程列表数
-        COLUMN_STRUCT m_ColumnStruct[9] = {
+        COLUMN_STRUCT m_ColumnStruct[9] =
+        {
             { L"驱动名",        130 },
             { L"基地址",        125 },
             { L"大小",            70 },
@@ -82,18 +74,12 @@ namespace ArkProtect
             { L"服务名",        80 },
             { L"启动入口",        125 },
             { L"加载顺序",        65 },
-            { L"文件厂商",        120 } };
-
-
+            { L"文件厂商",        120 }
+        };
         std::vector<DRIVER_ENTRY_INFORMATION> m_DriverEntryVector;
-
-
         class CGlobal       *m_Global;
         static CDriverCore  *m_Driver;
 
     };
-
-
-
 
 }

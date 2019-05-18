@@ -64,17 +64,15 @@ public:
 
 
 
-    CTabCtrl            m_AppTab;
-    CStatic             m_ProcessButton;
-    CStatic             m_DriverButton;
-    CStatic             m_KernelButton;
-    CStatic             m_HookButton;
-    CStatic             m_RegistryButton;
-    CStatic             m_AboutButton;
-    CStatusBarCtrl      *m_StatusBar;
+    CTabCtrl              m_AppTab;
+    CStatic               m_ProcessButton;
+    CStatic               m_DriverButton;
+    CStatic               m_KernelButton;
+    CStatic               m_HookButton;
+    CStatic               m_RegistryButton;
+    CStatic               m_AboutButton;
     NOTIFYICONDATA        m_NotifyIcon = { 0 };   // 任务栏图标
-    
-    
+    CStatusBarCtrl        *m_StatusBar;
     ArkProtect::CGlobal   m_Global;
     ArkProtect::eChildDlg m_CurrentChildDlg = (ArkProtect::eChildDlg)(-1);    // 子对话框
     CProcessDlg           *m_ProcessDlg = NULL;

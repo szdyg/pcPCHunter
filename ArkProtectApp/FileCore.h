@@ -8,9 +8,7 @@ namespace ArkProtect
     public:
         CFileCore(class CGlobal *GlobalObject);
         ~CFileCore();
-
         BOOL DeleteFile(CString strFilePath);
-
         static DWORD CALLBACK DeleteFileCallback(LPARAM lParam);
 
 

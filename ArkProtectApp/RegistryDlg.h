@@ -46,6 +46,4 @@ public:
     CImageList          m_RegistryIconTree;
     CListCtrl           m_RegistryListCtrl;
     CTreeCtrl           m_RegistryTreeCtrl;
-
-    
 };

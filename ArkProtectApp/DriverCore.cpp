@@ -7,8 +7,7 @@ namespace ArkProtect
 {
     CDriverCore *CDriverCore::m_Driver;
 
-    CDriverCore::CDriverCore(CGlobal *GlobalObject)
-        : m_Global(GlobalObject)
+    CDriverCore::CDriverCore(CGlobal *GlobalObject) : m_Global(GlobalObject)
     {
         m_Driver = this;
     }
@@ -168,7 +167,6 @@ namespace ArkProtect
         do
         {
             UINT32 OutputLength = 0;
-
             if (di)
             {
                 free(di);
@@ -332,9 +330,7 @@ namespace ArkProtect
 
         m_Driver->m_Global->UpdateStatusBarTip(L"Driver Info");
         m_Driver->m_Global->UpdateStatusBarDetail(L"Driver Info is loading now...");
-
         m_Driver->QueryDriverInfo(ListCtrl);
-
         m_Driver->m_Global->m_bIsRequestNow = FALSE;
 
         return 0;
@@ -412,13 +408,10 @@ namespace ArkProtect
     CString CDriverCore::GetDriverPathByAddress(UINT_PTR Address)
     {
         CString strPath = L"";
-
         size_t Size = m_DriverEntryVector.size();
-
         for (int i = 0; i < Size; i++)
         {
             DRIVER_ENTRY_INFORMATION DriverEntry = m_DriverEntryVector[i];
-
             UINT_PTR BaseAddress = DriverEntry.BaseAddress;
             UINT_PTR EndAddress = DriverEntry.BaseAddress + DriverEntry.Size;
 

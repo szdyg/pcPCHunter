@@ -62,13 +62,10 @@ namespace ArkProtect
     DWORD CALLBACK CFileCore::DeleteFileCallback(LPARAM lParam)
     {
         CString strFilePath = *(CString*)lParam;
-
         Sleep(2000);    // 暂时通过这种方法，让那边结束进程或者卸载驱动先完成了，再进行文件删除!!
 
         m_File->m_Global->m_bIsRequestNow = TRUE;      // 置TRUE，当驱动还没有返回前，阻止其他与驱动通信的操作
-
         m_File->DeleteFile(strFilePath);
-
         m_File->m_Global->m_bIsRequestNow = FALSE;
 
         return 0;

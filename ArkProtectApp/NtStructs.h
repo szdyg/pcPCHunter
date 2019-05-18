@@ -16,7 +16,8 @@ typedef __success(return >= 0) LONG NTSTATUS;
 #define STATUS_UNSUCCESSFUL ((NTSTATUS)0xC0000001L)
 #endif
 
-typedef struct _CLIENT_ID {
+typedef struct _CLIENT_ID 
+{
     HANDLE UniqueProcess;
     HANDLE UniqueThread;
 } CLIENT_ID;
@@ -186,7 +187,8 @@ typedef enum _SYSTEM_INFORMATION_CLASS
     MaxSystemInfoClass = 0x9c,
 } SYSTEM_INFORMATION_CLASS;
 
-typedef enum _KWAIT_REASON {
+typedef enum _KWAIT_REASON 
+{
     Executive,
     FreePage,
     PageIn,
@@ -227,7 +229,8 @@ typedef enum _KWAIT_REASON {
     MaximumWaitReason
 } KWAIT_REASON;
 
-typedef enum _PROCESSINFOCLASS {
+typedef enum _PROCESSINFOCLASS 
+{
     ProcessBasicInformation,
     ProcessQuotaLimits,
     ProcessIoCounters,
@@ -343,7 +346,8 @@ typedef struct _CURDIR
     HANDLE Handle;
 } CURDIR, *PCURDIR;
 
-typedef struct _RTL_USER_PROCESS_PARAMETERS {
+typedef struct _RTL_USER_PROCESS_PARAMETERS 
+{
     UINT32 MaximumLength;
     UINT32 Length;
     UINT32 Flags;

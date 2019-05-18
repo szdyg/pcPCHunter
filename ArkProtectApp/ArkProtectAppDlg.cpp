@@ -123,7 +123,7 @@ BOOL CArkProtectAppDlg::OnInitDialog()
 
     // 设置此对话框的图标。  当应用程序主窗口不是对话框时，框架将自动
     //  执行此操作
-    SetIcon(m_hIcon, TRUE);            // 设置大图标
+    SetIcon(m_hIcon, TRUE);         // 设置大图标
     SetIcon(m_hIcon, FALSE);        // 设置小图标
 
     // TODO: 在此添加额外的初始化代码
@@ -237,15 +237,14 @@ HCURSOR CArkProtectAppDlg::OnQueryDragIcon()
 ************************************************************************/
 void CArkProtectAppDlg::APInitializeTray()
 {
-    m_NotifyIcon.cbSize = sizeof(NOTIFYICONDATA);            // 大小赋值
-    m_NotifyIcon.hWnd = m_hWnd;                            // 父窗口
-    m_NotifyIcon.uID = IDR_MAINFRAME;                        // 这里的宏是图标ID
-    m_NotifyIcon.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;// 托盘所拥有的状态
-    m_NotifyIcon.uCallbackMessage = WM_ICONNOTIFY;            // 自定义回调消息   在托盘上处理鼠标动作  #define  WM_ICONNOTIFY   WM_USER + 0x100
-    m_NotifyIcon.hIcon = LoadIcon(AfxGetInstanceHandle(), MAKEINTRESOURCE(IDR_MAINFRAME));    // 调用全局函数来加载图标    // MAKEINTRESOURCE 数字类型转换成指针类型
-
-    lstrcpy(m_NotifyIcon.szTip, L"ArkProtect");                // 当鼠标放在上面时，所显示的内容 
-    Shell_NotifyIcon(NIM_ADD, &m_NotifyIcon);                // 在托盘区添加图标 // 向任务栏发送一个消息，向托盘区域添加一个图标
+    m_NotifyIcon.cbSize = sizeof(NOTIFYICONDATA);               // 大小赋值
+    m_NotifyIcon.hWnd = m_hWnd;                                 // 父窗口
+    m_NotifyIcon.uID = IDR_MAINFRAME;                           // 这里的宏是图标ID
+    m_NotifyIcon.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;     // 托盘所拥有的状态
+    m_NotifyIcon.uCallbackMessage = WM_ICONNOTIFY;              // 自定义回调消息   在托盘上处理鼠标动作  #define  WM_ICONNOTIFY   WM_USER + 0x100
+    m_NotifyIcon.hIcon = LoadIcon(AfxGetInstanceHandle(), MAKEINTRESOURCE(IDR_MAINFRAME));    // 调用全局函数来加载图标
+    lstrcpy(m_NotifyIcon.szTip, L"ArkProtect");                 // 当鼠标放在上面时，所显示的内容 
+    Shell_NotifyIcon(NIM_ADD, &m_NotifyIcon);                   // 在托盘区添加图标 // 向任务栏发送一个消息，向托盘区域添加一个图标
 }
 
 
@@ -282,7 +281,6 @@ LRESULT CArkProtectAppDlg::OnIconNotify(WPARAM wParam, LPARAM lParam)
 
         // 在指定位置显示快捷菜单，并跟踪菜单项的选择
         Menu.GetSubMenu(0)->TrackPopupMenu(TPM_LEFTBUTTON | TPM_RIGHTBUTTON, Pt.x, Pt.y, this);
-
         Menu.DestroyMenu();
 
         break;

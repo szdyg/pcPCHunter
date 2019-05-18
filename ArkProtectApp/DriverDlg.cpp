@@ -12,9 +12,7 @@
 
 IMPLEMENT_DYNAMIC(CDriverDlg, CDialogEx)
 
-CDriverDlg::CDriverDlg(CWnd* pParent /*=NULL*/, ArkProtect::CGlobal *GlobalObject)
-    : CDialogEx(IDD_DRIVER_DIALOG, pParent)
-    , m_Global(GlobalObject)
+CDriverDlg::CDriverDlg(CWnd* pParent, ArkProtect::CGlobal *GlobalObject) : CDialogEx(IDD_DRIVER_DIALOG, pParent), m_Global(GlobalObject)
 {
     // 保存对话框指针
     m_Global->m_DriverDlg = this;
@@ -22,6 +20,7 @@ CDriverDlg::CDriverDlg(CWnd* pParent /*=NULL*/, ArkProtect::CGlobal *GlobalObjec
 
 CDriverDlg::~CDriverDlg()
 {
+
 }
 
 void CDriverDlg::DoDataExchange(CDataExchange* pDX)
@@ -52,7 +51,6 @@ END_MESSAGE_MAP()
 BOOL CDriverDlg::OnInitDialog()
 {
     CDialogEx::OnInitDialog();
-
     // TODO:  在此添加额外的初始化
         
     // 初始化进程列表
